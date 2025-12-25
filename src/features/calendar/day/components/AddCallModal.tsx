@@ -35,6 +35,9 @@ interface AddCallModalProps {
     selectedDate: Date;
     selectedHour: number;
     onEventCreated?: (event: any) => void;
+    // Preselected client support (from client profile)
+    preselectedClientId?: string;
+    preselectedClientName?: string;
 }
 
 interface TimeSlot {
@@ -135,6 +138,8 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
     selectedDate: initialDate,
     selectedHour,
     onEventCreated,
+    preselectedClientId,
+    preselectedClientName,
 }) => {
     // -------------------------------------------------------------------------
     // STATE (Consolidated)
@@ -178,7 +183,8 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
     useEffect(() => {
         if (visible) {
             setSelectedDate(initialDate);
-            setSelectedClientId(null);
+            // If preselected client provided, use it; otherwise reset
+            setSelectedClientId(preselectedClientId || null);
             setTitle('');
             setNotes('');
             setActivePicker(null);
@@ -190,7 +196,7 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
             setStartTime(validStart);
             setEndTime(getNextEndTime(validStart, TIME_SLOTS));
         }
-    }, [visible, initialDate, selectedHour]);
+    }, [visible, initialDate, selectedHour, preselectedClientId]);
 
     // Auto-adjust endTime when startTime changes
     useEffect(() => {
@@ -303,12 +309,12 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
                                 <Search size={20} color="#5173fb" />
                                 <Text style={[
                                     styles.selectText,
-                                    !selectedClient && styles.placeholderText,
+                                    !selectedClient && !preselectedClientName && styles.placeholderText,
                                     { textAlign: isRTL ? 'left' : 'right', marginHorizontal: horizontalScale(8) }
                                 ]}>
                                     {selectedClient
                                         ? `${selectedClient.firstName} ${selectedClient.lastName}`
-                                        : t.selectClient
+                                        : preselectedClientName || t.selectClient
                                     }
                                 </Text>
                                 <ChevronDown size={20} color="#AAB8C5" />
@@ -482,7 +488,7 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
 
                         {/* Title (Optional) */}
                         <View style={styles.section}>
-                            <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {isRTL ? 'العنوان (اختياري)' : 'TITLE (OPTIONAL)'}
                             </Text>
                             <TextInput
@@ -496,7 +502,7 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
 
                         {/* Notes (Optional) */}
                         <View style={styles.section}>
-                            <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {isRTL ? 'ملاحظات (اختياري)' : 'NOTES (OPTIONAL)'}
                             </Text>
                             <TextInput
@@ -512,12 +518,12 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
 
                         {/* Reminders */}
                         <View style={styles.section}>
-                            <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.reminders}
                             </Text>
 
                             <TouchableOpacity
-                                style={[styles.checkboxRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                                style={[styles.checkboxRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
                                 onPress={() => setRemind15Min(!remind15Min)}
                             >
                                 <View style={[styles.checkbox, remind15Min && styles.checkboxChecked]}>
@@ -527,7 +533,7 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={[styles.checkboxRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                                style={[styles.checkboxRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
                                 onPress={() => setRemindClient1Hour(!remindClient1Hour)}
                             >
                                 <View style={[styles.checkbox, remindClient1Hour && styles.checkboxChecked]}>
@@ -542,7 +548,7 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
 
                     {/* Footer */}
                     <View style={styles.footer}>
-                        <View style={[styles.footerButtons, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={[styles.footerButtons, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <TouchableOpacity
                                 style={styles.cancelButton}
                                 onPress={onClose}

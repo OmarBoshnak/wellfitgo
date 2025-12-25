@@ -19,6 +19,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { doctorTranslations as t } from '@/src/i18n';
 import { horizontalScale, verticalScale } from '@/src/utils/scaling';
 import { useCoachInbox } from '@/src/features/messaging/hooks/useMessaging';
+import { useClientsNeedingAttention } from '@/src/hooks/useClientsNeedingAttention';
+import { useTodaysAppointments } from '@/src/hooks/useTodaysAppointments';
+import { usePhoneCall } from '@/src/hooks/usePhoneCall';
+import { useWeeklyActivity } from '@/src/hooks/useWeeklyActivity';
+import { useRecentActivity } from '@/src/hooks/useRecentActivity';
 
 // Extracted Components
 import {
@@ -28,76 +33,11 @@ import {
     WeeklyActivitySection,
     RecentActivitySection,
     NotificationPanel,
-    type Client,
     type Appointment,
     type Activity,
 } from '@/src/component/doctor/HomeScreen';
 
-// ============================================================
-// MOCK DATA
-// ============================================================
 
-const mockClientsNeedingAttention: Client[] = [
-    {
-        id: '1',
-        name: 'Ahmed Hassan',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop',
-        status: 'Missed 2 check-ins',
-        statusType: 'critical',
-        lastActive: '10 days ago',
-    },
-    {
-        id: '2',
-        name: 'Layla Mohamed',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop',
-        status: 'Weight +1.5kg this week',
-        statusType: 'warning',
-        feeling: '😕',
-    },
-    {
-        id: '3',
-        name: 'Karim Ali',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop',
-        status: 'Requested plan change',
-        statusType: 'info',
-        lastActive: '2 hours ago',
-    },
-];
-
-const mockAppointments: Appointment[] = [
-    {
-        id: '1',
-        time: '10:00 AM',
-        type: 'video',
-        clientName: 'Sara Ahmed',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop',
-        duration: '30 min',
-    },
-    {
-        id: '2',
-        time: '2:00 PM',
-        type: 'phone',
-        clientName: 'Mohamed Ali',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop',
-        duration: '45 min',
-    },
-];
-
-const mockRecentActivity: Activity[] = [
-    { id: '1', text: 'Sara Ahmed logged weight 68kg', time: '2 min ago' },
-    { id: '2', text: 'New message from Karim', time: '15 min ago' },
-    { id: '3', text: 'Layla completed all meals', time: '1 hour ago' },
-    { id: '4', text: 'Mohamed opened meal plan', time: '2 hours ago' },
-    { id: '5', text: 'You created plan for Ahmed', time: '3 hours ago' },
-];
-
-const mockWeeklyChartData = [42, 35, 48, 38, 52, 45, 28];
-
-const mockWeeklyStats = {
-    messages: 142,
-    plans: 8,
-    checkins: 24,
-};
 
 // ============================================================
 // MAIN COMPONENT
@@ -112,6 +52,67 @@ export default function DoctorDashboard() {
 
     // Get real-time unread messages count from Convex
     const { totalUnread, oldestUnread, isLoading: messagesLoading } = useCoachInbox();
+
+    // ============ CLIENTS NEEDING ATTENTION ============
+    // Fetch real clients data from Convex - show top 5 on dashboard
+    const {
+        clients: attentionClients,
+        isLoading: attentionLoading,
+        isEmpty: noAttentionNeeded,
+        refetch: refetchAttention,
+    } = useClientsNeedingAttention(5);
+
+    // ============ TODAY'S APPOINTMENTS ============
+    // Fetch real appointments data from Convex
+    const {
+        appointments,
+        isLoading: appointmentsLoading,
+        isEmpty: noAppointments,
+        refetch: refetchAppointments,
+    } = useTodaysAppointments(5);
+
+    // ============ PHONE CALL ============
+    const { callClient } = usePhoneCall();
+
+    // ============ WEEKLY ACTIVITY ============
+    const {
+        stats: weeklyStats,
+        chartData: weeklyChartData,
+        isLoading: weeklyLoading,
+        isEmpty: noWeeklyActivity,
+    } = useWeeklyActivity();
+
+    // ============ RECENT ACTIVITY ============
+    const {
+        activities: recentActivities,
+        isLoading: activitiesLoading,
+        isEmpty: noActivities,
+    } = useRecentActivity(5);
+
+    // ============================================================
+    // NOTIFICATION GATING EXAMPLE
+    // ============================================================
+    // The user's notification settings are available via convexUser.notificationSettings
+    // Use these to gate push token registration and notification displays:
+    //
+    // const { pushEnabled, newMessages, appointments } = convexUser?.notificationSettings ?? {
+    //     pushEnabled: true,
+    //     newMessages: true,
+    //     appointments: true,
+    // };
+    //
+    // 1. PUSH TOKEN REGISTRATION (in useEffect on app mount):
+    //    if (pushEnabled) {
+    //        await registerForPushNotificationsAsync();
+    //    }
+    //
+    // 2. NOTIFICATION BADGE (conditionally show):
+    //    const showBadge = pushEnabled && (totalUnread > 0);
+    //
+    // 3. GATING INDIVIDUAL NOTIFICATIONS:
+    //    - For messages: only show if pushEnabled && newMessages
+    //    - For appointments: only show if pushEnabled && appointments
+    // ============================================================
 
     // Notification panel visibility state
     const [showNotifications, setShowNotifications] = useState(false);
@@ -140,6 +141,7 @@ export default function DoctorDashboard() {
     const navigateTo = (view: string, _clientId?: string) => {
         switch (view) {
             case 'clients':
+                router.push('/(app)/doctor/(tabs)/clients');
                 break;
             case 'messages':
                 router.push('/(app)/doctor/(tabs)/messages');
@@ -154,6 +156,27 @@ export default function DoctorDashboard() {
             default:
                 break;
         }
+    };
+
+    // ============ ATTENTION SECTION HANDLERS ============
+    const handleClientPress = (clientId: string) => {
+        // Use type assertion for dynamic route - expo-router doesn't type dynamic segments well
+        router.push(`/(app)/doctor/client/${clientId}` as any);
+    };
+
+    const handleMessagePress = (clientId: string) => {
+        // Navigate to messages screen with client context
+        router.push({
+            pathname: '/(app)/doctor/(tabs)/messages',
+            params: { openChatWithClient: clientId },
+        });
+    };
+
+    const handleViewAllAttention = () => {
+        router.push({
+            pathname: '/(app)/doctor/(tabs)/clients',
+            params: { filter: 'needs_attention' },
+        });
     };
 
     // --------------------------------------------------------
@@ -224,30 +247,49 @@ export default function DoctorDashboard() {
 
                 {/* Clients Needing Attention */}
                 <ClientsAttentionSection
-                    clients={mockClientsNeedingAttention}
-                    onViewAll={() => navigateTo('clients')}
-                    onClientPress={(clientId) => navigateTo('client-profile', clientId)}
-                    onMessagePress={() => navigateTo('messages')}
+                    clients={attentionClients}
+                    isLoading={attentionLoading}
+                    isEmpty={noAttentionNeeded}
+                    onViewAll={handleViewAllAttention}
+                    onClientPress={handleClientPress}
+                    onMessagePress={handleMessagePress}
+                    onRetry={refetchAttention}
                 />
 
                 {/* Today's Appointments */}
                 <AppointmentsSection
-                    appointments={mockAppointments}
+                    appointments={appointments}
+                    isLoading={appointmentsLoading}
+                    isEmpty={noAppointments}
                     onAddPress={() => router.push('/(app)/doctor/calendar')}
                     onSchedulePress={() => router.push('/(app)/doctor/calendar')}
+                    onAppointmentPress={() => router.push('/(app)/doctor/calendar')}
+                    onStartCall={(apt) => {
+                        // For video calls, navigate to calendar
+                        router.push('/(app)/doctor/calendar');
+                    }}
+                    onStartPhoneCall={(apt) => {
+                        // Initiate phone call using hook
+                        callClient(apt.clientId, apt.clientName, apt.clientPhone);
+                    }}
+                    onRetry={refetchAppointments}
                 />
 
                 {/* This Week's Activity */}
                 <WeeklyActivitySection
-                    chartData={mockWeeklyChartData}
-                    stats={mockWeeklyStats}
+                    chartData={weeklyChartData}
+                    stats={weeklyStats}
+                    isLoading={weeklyLoading}
+                    isEmpty={noWeeklyActivity}
                     onViewAnalytics={() => navigateTo('analytics')}
                 />
 
                 {/* Recent Activity Feed */}
                 <RecentActivitySection
-                    activities={mockRecentActivity}
-                    onSeeAll={() => { }}
+                    activities={recentActivities}
+                    isLoading={activitiesLoading}
+                    isEmpty={noActivities}
+                    onSeeAll={() => navigateTo('analytics')}
                 />
             </ScrollView>
         </SafeAreaView>

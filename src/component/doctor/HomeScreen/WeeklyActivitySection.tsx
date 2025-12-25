@@ -5,7 +5,7 @@ import { colors } from '@/src/theme';
 import { isRTL, doctorTranslations as t } from '@/src/i18n';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
 
-// Types
+// ============ TYPES ============
 export interface WeeklyStats {
     messages: number;
     plans: number;
@@ -15,8 +15,12 @@ export interface WeeklyStats {
 export interface WeeklyActivitySectionProps {
     chartData: number[];
     stats: WeeklyStats;
+    isLoading?: boolean;
+    isEmpty?: boolean;
     onViewAnalytics: () => void;
 }
+
+// ============ HELPER COMPONENTS ============
 
 // Directional Arrow Component
 function DirectionalArrow({ size = 16, color = colors.success }: { size?: number; color?: string }) {
@@ -24,23 +28,100 @@ function DirectionalArrow({ size = 16, color = colors.success }: { size?: number
     return isRTL ? <ArrowLeft size={scaledSize} color={color} /> : <ArrowRight size={scaledSize} color={color} />;
 }
 
+// Skeleton loader for chart
+function ChartSkeleton() {
+    return (
+        <View style={[styles.chartContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+            {[40, 60, 35, 80, 50, 70, 25].map((height, i) => (
+                <View key={i} style={styles.chartBarWrapper}>
+                    <View style={[styles.chartBarSkeleton, { height: `${height}%` }]} />
+                    <View style={styles.chartLabelSkeleton} />
+                </View>
+            ))}
+        </View>
+    );
+}
+
+// Skeleton loader for stats
+function StatsSkeleton() {
+    return (
+        <View style={[styles.weeklyStatsRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.weeklyStat}>
+                    <View style={styles.statLabelSkeleton} />
+                    <View style={styles.statValueSkeleton} />
+                </View>
+            ))}
+        </View>
+    );
+}
+
+// Empty state component
+function EmptyState() {
+    return (
+        <View style={styles.emptyState}>
+            <Text style={styles.emptyStateEmoji}>📊</Text>
+            <Text style={styles.emptyStateText}>
+                {isRTL ? 'لا يوجد نشاط هذا الأسبوع بعد' : 'No activity this week yet'}
+            </Text>
+            <Text style={styles.emptyStateSubtext}>
+                {isRTL ? 'ابدأ بإرسال الرسائل وخطط الوجبات!' : 'Start sending messages and meal plans!'}
+            </Text>
+        </View>
+    );
+}
+
+// ============ MAIN COMPONENT ============
 export function WeeklyActivitySection({
     chartData,
     stats,
+    isLoading = false,
+    isEmpty = false,
     onViewAnalytics
 }: WeeklyActivitySectionProps) {
+    // Loading state
+    if (isLoading) {
+        return (
+            <View style={styles.sectionCard}>
+                <Text style={[styles.sectionTitleSmall, { textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t.thisWeeksActivity}
+                </Text>
+                <ChartSkeleton />
+                <StatsSkeleton />
+            </View>
+        );
+    }
+
+    // Empty state
+    if (isEmpty) {
+        return (
+            <View style={styles.sectionCard}>
+                <Text style={[styles.sectionTitleSmall, { textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t.thisWeeksActivity}
+                </Text>
+                <EmptyState />
+            </View>
+        );
+    }
+
     return (
         <View style={styles.sectionCard}>
-            <Text style={[styles.sectionTitleSmall, { textAlign: isRTL ? 'right' : 'left' }]}>{t.thisWeeksActivity}</Text>
-            <View style={[styles.chartContainer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <Text style={[styles.sectionTitleSmall, { textAlign: isRTL ? 'left' : 'right' }]}>
+                {t.thisWeeksActivity}
+            </Text>
+
+            {/* Bar Chart */}
+            <View style={[styles.chartContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 {chartData.map((height, i) => (
                     <View key={i} style={styles.chartBarWrapper}>
-                        <View style={[styles.chartBar, { height: `${height}%` }]} />
+                        <View style={[styles.chartBar, { height: `${Math.max(height, 5)}%` }]} />
                         <Text style={styles.chartLabel}>{t.dayLabels[i]}</Text>
                     </View>
                 ))}
             </View>
-            <View style={[styles.weeklyStatsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+
+            {/* Stats Row */}
+            <View style={[styles.weeklyStatsRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 <View style={styles.weeklyStat}>
                     <Text style={styles.weeklyStatLabel}>{t.messages}</Text>
                     <Text style={styles.weeklyStatValue}>{stats.messages}</Text>
@@ -54,17 +135,12 @@ export function WeeklyActivitySection({
                     <Text style={styles.weeklyStatValue}>{stats.checkins}</Text>
                 </View>
             </View>
-            <TouchableOpacity
-                style={[styles.viewAnalyticsLink, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
-                onPress={onViewAnalytics}
-            >
-                <Text style={styles.viewAnalyticsText}>{t.viewFullAnalytics}</Text>
-                <DirectionalArrow />
-            </TouchableOpacity>
+
         </View>
     );
 }
 
+// ============ STYLES ============
 const styles = StyleSheet.create({
     sectionCard: {
         backgroundColor: colors.bgPrimary,
@@ -126,6 +202,7 @@ const styles = StyleSheet.create({
     },
     viewAnalyticsLink: {
         alignItems: 'center',
+        justifyContent: 'center',
         marginTop: verticalScale(16),
         gap: horizontalScale(4),
     },
@@ -133,5 +210,50 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         color: colors.success,
         fontWeight: '500',
+    },
+    // Skeleton styles
+    chartBarSkeleton: {
+        width: '60%',
+        backgroundColor: '#E5E7EB',
+        borderRadius: horizontalScale(4),
+    },
+    chartLabelSkeleton: {
+        width: horizontalScale(20),
+        height: verticalScale(10),
+        backgroundColor: '#E5E7EB',
+        borderRadius: horizontalScale(2),
+        marginTop: verticalScale(4),
+    },
+    statLabelSkeleton: {
+        width: horizontalScale(50),
+        height: verticalScale(12),
+        backgroundColor: '#E5E7EB',
+        borderRadius: horizontalScale(2),
+        marginBottom: verticalScale(4),
+    },
+    statValueSkeleton: {
+        width: horizontalScale(30),
+        height: verticalScale(20),
+        backgroundColor: '#E5E7EB',
+        borderRadius: horizontalScale(2),
+    },
+    // Empty state styles
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: verticalScale(32),
+    },
+    emptyStateEmoji: {
+        fontSize: ScaleFontSize(40),
+        marginBottom: verticalScale(12),
+    },
+    emptyStateText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '600',
+        color: colors.textPrimary,
+        marginBottom: verticalScale(4),
+    },
+    emptyStateSubtext: {
+        fontSize: ScaleFontSize(12),
+        color: colors.textSecondary,
     },
 });

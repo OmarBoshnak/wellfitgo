@@ -463,4 +463,48 @@ export const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         color: colors.textSecondary,
     },
+    // Loading State
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.bgSecondary,
+    },
+    loadingText: {
+        marginTop: verticalScale(16),
+        fontSize: ScaleFontSize(16),
+        color: colors.textSecondary,
+    },
+    // Error State
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.bgSecondary,
+        padding: horizontalScale(32),
+    },
+    errorEmoji: {
+        fontSize: ScaleFontSize(48),
+        marginBottom: verticalScale(16),
+    },
+    errorText: {
+        fontSize: ScaleFontSize(18),
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    // Avatar Placeholder
+    avatarPlaceholder: {
+        width: '100%',
+        height: '100%',
+        borderRadius: horizontalScale(44),
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarPlaceholderText: {
+        fontSize: ScaleFontSize(32),
+        fontWeight: '700',
+        color: '#FFFFFF',
+    },
 });
+

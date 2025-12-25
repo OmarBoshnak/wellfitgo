@@ -63,15 +63,39 @@ export default defineSchema({
         avatarUrl: v.optional(v.string()),
         preferredLanguage: v.union(v.literal("ar"), v.literal("en")),
         preferredUnits: v.union(v.literal("metric"), v.literal("imperial")),
-        notificationSettings: v.object({
-            pushEnabled: v.boolean(),
-            mealReminders: v.boolean(),
-            weeklyCheckin: v.boolean(),
-            coachMessages: v.boolean(),
-            motivational: v.boolean(),
+        // Regional settings
+        regionalSettings: v.optional(v.object({
+            dateFormat: v.optional(v.union(
+                v.literal("MM/DD/YYYY"),
+                v.literal("DD/MM/YYYY"),
+                v.literal("YYYY-MM-DD")
+            )),
+            timeFormat: v.optional(v.union(v.literal("12h"), v.literal("24h"))),
+            timezone: v.optional(v.string()),
+            autoDetectTimezone: v.optional(v.boolean()),
+            firstDayOfWeek: v.optional(v.union(
+                v.literal("saturday"),
+                v.literal("sunday"),
+                v.literal("monday")
+            )),
+        })),
+        // Making fields optional for backwards compatibility with existing users
+        // The getNotificationSettings query provides safe defaults
+        notificationSettings: v.optional(v.object({
+            pushEnabled: v.optional(v.boolean()),
+            newMessages: v.optional(v.boolean()),
+            appointments: v.optional(v.boolean()),
+            // Legacy fields from old schema (will be ignored)
+            mealReminders: v.optional(v.boolean()),
+            weeklyCheckin: v.optional(v.boolean()),
+            coachMessages: v.optional(v.boolean()),
+            motivational: v.optional(v.boolean()),
             quietHoursStart: v.optional(v.string()),
             quietHoursEnd: v.optional(v.string()),
-        }),
+        })),
+        // Coach notes for this client (private to coach)
+        coachNotes: v.optional(v.string()),
+        coachNotesUpdatedAt: v.optional(v.number()),
         isActive: v.boolean(),
         lastActiveAt: v.optional(v.number()),
         createdAt: v.number(),
@@ -81,6 +105,17 @@ export default defineSchema({
         .index("by_role", ["role"])
         .index("by_assigned_coach", ["assignedCoachId"])
         .index("by_subscription_status", ["subscriptionStatus"]),
+
+    // ============ CLIENT NOTES (Coach notes history) ============
+    clientNotes: defineTable({
+        clientId: v.id("users"),
+        coachId: v.id("users"),
+        content: v.string(),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_client", ["clientId"])
+        .index("by_coach", ["coachId"]),
 
     // ============ MEAL COMPLETIONS (Daily tracking) ============
     mealCompletions: defineTable({

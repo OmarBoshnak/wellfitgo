@@ -1,39 +1,47 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     Image,
-    Modal,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    Animated,
+    ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Bell,
-    ChevronLeft,
-    ChevronRight,
     Clock,
     Mail,
-    MoreVertical,
-    Plus,
     Search,
-    SlidersHorizontal,
     X,
+    User,
+    AlertTriangle,
+    CheckCircle,
+    UserPlus,
+    UserX,
 } from 'lucide-react-native';
 import { colors, gradients } from '@/src/constants/Themes';
 import { isRTL } from '@/src/constants/translations';
 import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/utils/scaling';
+import {
+    useClients,
+    formatLastCheckIn,
+    type Client,
+    type ClientStatus,
+    type ClientFilter,
+} from '@/src/hooks/useClients';
+import { Id } from '@/convex/_generated/dataModel';
 
-// Translations
+// ============ TRANSLATIONS ============
 const t = {
     title: isRTL ? 'العملاء' : 'Clients',
     searchPlaceholder: isRTL ? 'ابحث بالاسم أو البريد...' : 'Search by name or email...',
-    allClients: isRTL ? 'جميع العملاء' : 'All Clients',
+    allClients: isRTL ? 'الكل' : 'All',
     active: isRTL ? 'نشط' : 'Active',
     inactive: isRTL ? 'غير نشط' : 'Inactive',
     new: isRTL ? 'جديد' : 'New',
@@ -47,134 +55,174 @@ const t = {
     viewProfile: isRTL ? 'عرض الملف' : 'View Profile',
     message: isRTL ? 'رسالة' : 'Message',
     sendReminder: isRTL ? 'إرسال تذكير' : 'Send Reminder',
-    // Modal translations
-    addNewClient: isRTL ? 'إضافة عميل جديد' : 'Add New Client',
-    step1: isRTL ? 'الخطوة 1 من 2: المعلومات الأساسية' : 'Step 1 of 2: Basic Information',
-    fullName: isRTL ? 'الاسم الكامل' : 'Full Name',
-    email: isRTL ? 'البريد الإلكتروني' : 'Email',
-    phoneNumber: isRTL ? 'رقم الهاتف' : 'Phone Number',
-    gender: isRTL ? 'الجنس' : 'Gender',
-    male: isRTL ? 'ذكر' : 'Male',
-    female: isRTL ? 'أنثى' : 'Female',
-    height: isRTL ? 'الطول (سم)' : 'Height (cm)',
-    cancel: isRTL ? 'إلغاء' : 'Cancel',
-    next: isRTL ? 'التالي' : 'Next',
+    noClients: isRTL ? 'لا يوجد عملاء' : 'No clients',
+    noClientsSubtext: isRTL ? 'لم يتم العثور على عملاء' : 'No clients found',
+    noActiveClients: isRTL ? 'لا يوجد عملاء نشطين' : 'No active clients',
+    noInactiveClients: isRTL ? 'لا يوجد عملاء غير نشطين' : 'No inactive clients',
+    noNewClients: isRTL ? 'لا يوجد عملاء جدد' : 'No new clients',
+    noAtRiskClients: isRTL ? 'لا يوجد عملاء معرضين للخطر 🎉' : 'No at-risk clients 🎉',
 };
 
-type FilterStatus = 'all' | 'active' | 'inactive' | 'new' | 'atRisk';
+// ============ STATUS COMPONENTS ============
 
-// Mock clients data with updated structure
-const mockClients = [
-    {
-        id: '1',
-        name: isRTL ? 'سارة محمد' : 'Sarah Jenkins',
-        email: 'sarah.j@example.com',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDV2xQmlyfFZn1G4eGyLe2eKAEbWsr5s5pr85m2688aDtAV90Jij4qmRmSqcT5wiJhMdPLZgvvHRCVvhLH901MotiNnaUXVE_c1XLHBRGVsXs4oajD33DhXw68XbkMIVMtMvR72nF7U1cek4btq_QW0kNATEYS7BwVIpT3DdEAaed0trwfMC-4hcYsB4ooVxCm7uPZEBFGr1Per4_OClhMPX93yjSoQarGmNSj6WMemamPOj8WAMVcY3xfxWsirEagcb8JlnRnxFbQ',
-        status: 'active' as const,
-        startWeight: 75,
-        currentWeight: 68,
-        targetWeight: 60,
-        progress: 60,
-        lastCheckIn: isRTL ? 'منذ يومين' : '2d ago',
-        unreadMessages: 5,
-        isOverdue: false,
-        isNew: false,
-    },
-    {
-        id: '2',
-        name: isRTL ? 'أحمد حسن' : 'Ahmed Hassan',
-        email: 'ahmed.h@example.com',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBU7-Y76H21BM0qPq1muXSG5TkI3Y3K_Db5V-E3uS0SlPVrIeBlXlkFBjrfr-Rgzps2WAVxk9wx46mLTKjnGrn1RBOLOEMkZG-gav4u6YtHllDDrqp6fHiP0jCUSqvYNnNv5IkaiBUDHSC2tVYx9Amuij4URahbl847pg56pJy7IuU5wu8ZpIIvBFQR5GybotyQD46MHqXaI1ki5RVjG15qP0CAflUaupoxLW8zCOnYmIyuvXujDrGSPviSwUwr-rzOJ5_L59fWn74',
-        status: 'active' as const,
-        startWeight: 85,
-        currentWeight: 82,
-        targetWeight: 75,
-        progress: 30,
-        lastCheckIn: isRTL ? 'منذ 10 أيام' : '10 days ago',
-        unreadMessages: 0,
-        isOverdue: true,
-        isNew: false,
-    },
-    {
-        id: '3',
-        name: isRTL ? 'إيميلي تشين' : 'Emily Chen',
-        email: 'emily.c@example.com',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBR4FWG9x8cLYB8Ttj9nA3Ou-eTZluqmKYfXwq2dWuVhZuQTd7vU-H6fbom2rn4TxdyEDsuwjl1FhJ7nEKaPZWmwyU-3HEhAP9ABdVag95yqP8aLW59RBxzZ2TcxscXcIgRl498KRbVyH43tog7TNtv7jAnhscf2RkEnSg-xjts8BRUJD_o2p4sqV9a9Mqn6OnHSmfcJOvoNCz4XLFuDWdlpiqzIut7DTSuWgFFFLi6-zMwKxZrJi_GJ9OZRBpLNICi_Rej8Na5p5s',
-        status: 'active' as const,
-        startWeight: 65,
-        currentWeight: 65,
-        targetWeight: 58,
-        progress: 10,
-        lastCheckIn: isRTL ? 'أمس' : 'Yesterday',
-        unreadMessages: 0,
-        isOverdue: false,
-        isNew: true,
-    },
-    {
-        id: '4',
-        name: isRTL ? 'محمد علي' : 'Mohamed Ali',
-        email: 'mohamed.ali@email.com',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop',
-        status: 'inactive' as const,
-        startWeight: 90,
-        currentWeight: 85,
-        targetWeight: 80,
-        progress: 50,
-        lastCheckIn: isRTL ? 'منذ 30 يوم' : '30 days ago',
-        unreadMessages: 0,
-        isOverdue: false,
-        isNew: false,
-    },
-];
+/** Status icon component - displays lucide icon based on status */
+function StatusIcon({ status }: { status: ClientStatus }) {
+    const size = horizontalScale(12);
+    switch (status) {
+        case 'active':
+            return <CheckCircle size={size} color="#16A34A" />;
+        case 'new':
+            return <UserPlus size={size} color="#2563EB" />;
+        case 'atRisk':
+            return <AlertTriangle size={size} color="#D97706" />;
+        case 'overdue':
+            return <Bell size={size} color="#DC2626" />;
+        case 'inactive':
+            return <UserX size={size} color="#6B7280" />;
+        default:
+            return null;
+    }
+}
+
+/** Status badge component - displays colored badge with icon */
+function StatusBadge({ status }: { status: ClientStatus }) {
+    const getStatusStyle = () => {
+        switch (status) {
+            case 'active':
+                return { bg: '#DCFCE7', text: '#166534', label: t.active };
+            case 'new':
+                return { bg: '#DBEAFE', text: '#1E40AF', label: t.new };
+            case 'atRisk':
+                return { bg: '#FEF3C7', text: '#92400E', label: t.atRisk };
+            case 'overdue':
+                return { bg: '#FEE2E2', text: '#991B1B', label: t.overdue };
+            case 'inactive':
+                return { bg: '#F3F4F6', text: '#6B7280', label: t.inactive };
+            default:
+                return { bg: '#F3F4F6', text: '#6B7280', label: '' };
+        }
+    };
+
+    const style = getStatusStyle();
+
+    return (
+        <View style={[styles.statusBadge, { backgroundColor: style.bg }]}>
+            <StatusIcon status={status} />
+            <Text style={[styles.statusBadgeText, { color: style.text }]}>
+                {style.label}
+            </Text>
+        </View>
+    );
+}
+
+// ============ LOADING & EMPTY STATES ============
+
+/** Skeleton loading card for clients */
+function ClientCardSkeleton() {
+    return (
+        <View style={styles.clientCard}>
+            <View style={styles.cardHeader}>
+                <View style={[styles.cardHeaderLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                    <View style={[styles.skeletonAvatar, styles.skeleton]} />
+                    <View style={styles.skeletonInfo}>
+                        <View style={[styles.skeletonName, styles.skeleton]} />
+                        <View style={[styles.skeletonEmail, styles.skeleton]} />
+                    </View>
+                </View>
+            </View>
+            <View style={styles.progressSection}>
+                <View style={[styles.skeletonProgress, styles.skeleton]} />
+            </View>
+        </View>
+    );
+}
+
+/** Empty state component */
+function EmptyState({ filter }: { filter: ClientFilter }) {
+    const getEmptyMessage = () => {
+        switch (filter) {
+            case 'active':
+                return t.noActiveClients;
+            case 'inactive':
+                return t.noInactiveClients;
+            case 'new':
+                return t.noNewClients;
+            case 'atRisk':
+                return t.noAtRiskClients;
+            default:
+                return t.noClients;
+        }
+    };
+
+    return (
+        <View style={styles.emptyState}>
+            <User size={horizontalScale(48)} color={colors.textSecondary} />
+            <Text style={styles.emptyStateText}>{getEmptyMessage()}</Text>
+            <Text style={styles.emptyStateSubtext}>{t.noClientsSubtext}</Text>
+        </View>
+    );
+}
+
+// ============ MAIN COMPONENT ============
 
 export default function ClientsScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const [activeFilter, setActiveFilter] = useState<FilterStatus>('all');
+
+    // State
+    const [activeFilter, setActiveFilter] = useState<ClientFilter>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showSearch, setShowSearch] = useState(false);
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
-    // Filter clients based on active filter and search query
-    const filteredClients = mockClients.filter((client) => {
-        // Search filter
-        const matchesSearch =
-            client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            client.email.toLowerCase().includes(searchQuery.toLowerCase());
+    // Fetch clients using Convex hook
+    const {
+        clients,
+        counts,
+        isLoading,
+        isEmpty,
+        sendReminder,
+        isSendingReminder,
+    } = useClients(activeFilter, searchQuery);
 
-        // Status filter
-        let matchesFilter = true;
-        switch (activeFilter) {
-            case 'active':
-                matchesFilter = client.status === 'active' && !client.isOverdue;
-                break;
-            case 'inactive':
-                matchesFilter = client.status === 'inactive';
-                break;
-            case 'new':
-                matchesFilter = client.isNew;
-                break;
-            case 'atRisk':
-                matchesFilter = client.isOverdue;
-                break;
-        }
+    // ============ HANDLERS ============
 
-        return matchesSearch && matchesFilter;
-    });
-
-    const navigateToProfile = (clientId: string) => {
+    const navigateToProfile = useCallback((clientId: Id<"users">) => {
         router.push(`/(app)/doctor/client-profile?id=${clientId}`);
-    };
+    }, [router]);
 
-    const filterChips: { key: FilterStatus; label: string }[] = [
-        { key: 'all', label: t.allClients },
-        { key: 'active', label: t.active },
-        { key: 'inactive', label: t.inactive },
-        { key: 'new', label: t.new },
-        { key: 'atRisk', label: t.atRisk },
+    const navigateToMessages = useCallback((clientId: Id<"users">) => {
+        router.push({
+            pathname: '/(app)/doctor/(tabs)/messages',
+            params: { openChatWithClient: clientId },
+        });
+    }, [router]);
+
+    const handleSendReminder = useCallback(async (client: Client) => {
+        // Determine reminder type based on client status
+        const reminderType = client.lastCheckInDays && client.lastCheckInDays > 7
+            ? "weight"
+            : "general";
+        await sendReminder(client.id, reminderType);
+    }, [sendReminder]);
+
+    const handleRefresh = useCallback(() => {
+        setRefreshing(true);
+        // Convex auto-refreshes, wait briefly for UX
+        setTimeout(() => setRefreshing(false), 1000);
+    }, []);
+
+    // ============ FILTER CHIPS ============
+
+    const filterChips: { key: ClientFilter; label: string; count: number }[] = [
+        { key: 'all', label: t.allClients, count: counts.all },
+        { key: 'active', label: t.active, count: counts.active },
+        { key: 'new', label: t.new, count: counts.new },
+        { key: 'atRisk', label: t.atRisk, count: counts.atRisk },
+        { key: 'inactive', label: t.inactive, count: counts.inactive },
     ];
 
-    const renderFilterChip = (item: { key: FilterStatus; label: string }) => {
+    const renderFilterChip = (item: typeof filterChips[0]) => {
         const isActive = activeFilter === item.key;
 
         if (isActive) {
@@ -190,7 +238,9 @@ export default function ClientsScreen() {
                         end={{ x: 1, y: 0 }}
                         style={styles.filterChipActive}
                     >
-                        <Text style={styles.filterChipTextActive}>{item.label}</Text>
+                        <Text style={styles.filterChipTextActive}>
+                            {item.label} {item.count > 0 && `(${item.count})`}
+                        </Text>
                     </LinearGradient>
                 </TouchableOpacity>
             );
@@ -203,14 +253,20 @@ export default function ClientsScreen() {
                 onPress={() => setActiveFilter(item.key)}
                 activeOpacity={0.7}
             >
-                <Text style={styles.filterChipText}>{item.label}</Text>
+                <Text style={styles.filterChipText}>
+                    {item.label} {item.count > 0 && `(${item.count})`}
+                </Text>
             </TouchableOpacity>
         );
     };
 
-    const renderClientCard = (client: typeof mockClients[0]) => {
-        const isOverdue = client.isOverdue;
-        const isNewClient = client.isNew;
+    // ============ CLIENT CARD ============
+
+    const renderClientCard = (client: Client) => {
+        const isOverdue = client.status === 'overdue';
+        const isAtRisk = client.status === 'atRisk';
+        const isNewClient = client.status === 'new';
+        const needsReminder = isOverdue || isAtRisk;
 
         return (
             <View
@@ -218,38 +274,38 @@ export default function ClientsScreen() {
                 style={[
                     styles.clientCard,
                     isOverdue && styles.clientCardOverdue,
+                    isAtRisk && styles.clientCardAtRisk,
                 ]}
             >
                 {/* Header */}
-                <View style={[styles.cardHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TouchableOpacity
+                    style={[styles.cardHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                    onPress={() => navigateToProfile(client.id)}
+                    activeOpacity={0.7}
+                >
                     <View style={[styles.cardHeaderLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <View style={styles.avatarContainer}>
-                            <Image source={{ uri: client.avatar }} style={styles.avatar} />
+                            {client.avatar ? (
+                                <Image source={{ uri: client.avatar }} style={styles.avatar} />
+                            ) : (
+                                <View style={styles.avatarPlaceholder}>
+                                    <Text style={styles.avatarPlaceholderText}>
+                                        {client.firstName.charAt(0)}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                         <View style={[styles.clientInfo, { alignItems: isRTL ? 'flex-start' : 'flex-end' }]}>
                             <View style={[styles.nameRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                 <Text style={styles.clientName}>{client.name}</Text>
-                                {isOverdue ? (
-                                    <View style={styles.overdueStatus}>
-                                        <Bell size={horizontalScale(10)} color="#92400E" />
-                                        <Text style={styles.overdueStatusText}>{t.overdue}</Text>
-                                    </View>
-                                ) : isNewClient ? (
-                                    <View style={styles.newStatus}>
-                                        <Text style={styles.newStatusText}>{t.new}</Text>
-                                    </View>
-                                ) : (
-                                    <View style={styles.activeStatus}>
-                                        <Text style={styles.activeStatusText}>{t.active}</Text>
-                                    </View>
-                                )}
+                                <StatusBadge status={client.status} />
                             </View>
                             <Text style={styles.clientEmail}>{client.email}</Text>
                         </View>
                     </View>
-                </View>
+                </TouchableOpacity>
 
-                {/* Progress Section */}
+                {/* Progress Section - hide for overdue to show urgency */}
                 {!isOverdue && (
                     <View style={styles.progressSection}>
                         <View style={[styles.progressHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
@@ -261,7 +317,11 @@ export default function ClientsScreen() {
                         {!isNewClient && (
                             <View style={[styles.weightFlow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                 <Text style={styles.weightText}>
-                                    {client.startWeight} kg <Text style={styles.weightArrow}>{isRTL ? '←' : '→'}</Text> {client.currentWeight} kg <Text style={styles.weightArrow}>{isRTL ? '←' : '→'}</Text> {client.targetWeight} kg
+                                    {client.startWeight} kg
+                                    <Text style={styles.weightArrow}> {isRTL ? '←' : '→'} </Text>
+                                    {client.currentWeight} kg
+                                    <Text style={styles.weightArrow}> {isRTL ? '←' : '→'} </Text>
+                                    {client.targetWeight} kg
                                 </Text>
                             </View>
                         )}
@@ -270,7 +330,6 @@ export default function ClientsScreen() {
                                 <Text style={[styles.weightText, { textAlign: isRTL ? 'right' : 'left' }]}>
                                     {isRTL ? 'البداية ← التقييم' : 'Start → Assessment'}
                                 </Text>
-
                             </View>
                         )}
                         <View style={styles.progressBarContainer}>
@@ -285,17 +344,21 @@ export default function ClientsScreen() {
                 )}
 
                 {/* Footer */}
-                <View style={[styles.cardFooter, isOverdue && styles.cardFooterOverdue]}>
+                <View style={[styles.cardFooter, needsReminder && styles.cardFooterWarning]}>
                     {/* Info Badges */}
                     <View style={[styles.infoBadges, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <View style={[styles.infoBadge, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <Clock size={horizontalScale(12)} color={colors.textSecondary} />
-                            <Text style={[
-                                styles.infoBadgeText,
-                                isOverdue && styles.infoBadgeTextDanger,
-                            ]}>
-                                {isOverdue ? t.lastCheckIn + ': ' : (isNewClient ? t.joined + ': ' : t.lastCheckIn + ': ')}
-                                {client.lastCheckIn}
+                            <Text
+                                style={[
+                                    styles.infoBadgeText,
+                                    needsReminder && styles.infoBadgeTextDanger,
+                                ]}
+                            >
+                                {isNewClient ? t.joined : t.lastCheckIn}:{' '}
+                                {formatLastCheckIn(
+                                    isNewClient ? client.daysSinceJoined : client.lastCheckInDays
+                                )}
                             </Text>
                         </View>
                         {client.unreadMessages > 0 && (
@@ -317,13 +380,28 @@ export default function ClientsScreen() {
                         >
                             <Text style={styles.viewProfileText}>{t.viewProfile}</Text>
                         </TouchableOpacity>
-                        {isOverdue ? (
-                            <TouchableOpacity style={styles.reminderButton} activeOpacity={0.7}>
-                                <Bell size={horizontalScale(16)} color="#FFFFFF" />
-                                <Text style={styles.reminderButtonText}>{t.sendReminder}</Text>
+
+                        {needsReminder ? (
+                            <TouchableOpacity
+                                style={styles.reminderButton}
+                                onPress={() => handleSendReminder(client)}
+                                activeOpacity={0.7}
+                                disabled={isSendingReminder}
+                            >
+                                {isSendingReminder ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <>
+                                        <Bell size={horizontalScale(16)} color="#FFFFFF" />
+                                        <Text style={styles.reminderButtonText}>{t.sendReminder}</Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                         ) : (
-                            <TouchableOpacity activeOpacity={0.8}>
+                            <TouchableOpacity
+                                activeOpacity={0.8}
+                                onPress={() => navigateToMessages(client.id)}
+                            >
                                 <LinearGradient
                                     colors={gradients.primary}
                                     start={{ x: 0, y: 0 }}
@@ -339,6 +417,8 @@ export default function ClientsScreen() {
             </View>
         );
     };
+
+    // ============ RENDER ============
 
     return (
         <SafeAreaView edges={['left', 'right']} style={styles.container}>
@@ -356,7 +436,7 @@ export default function ClientsScreen() {
                 </View>
             </View>
 
-            {/* Search Bar (Expandable) */}
+            {/* Search Bar */}
             {showSearch && (
                 <View style={styles.searchContainer}>
                     <View style={[styles.searchInputWrapper, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
@@ -397,13 +477,34 @@ export default function ClientsScreen() {
                 style={styles.clientList}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.clientListContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.primaryDark}
+                    />
+                }
             >
-                {filteredClients.map(renderClientCard)}
+                {/* Loading State */}
+                {isLoading && (
+                    <>
+                        <ClientCardSkeleton />
+                        <ClientCardSkeleton />
+                        <ClientCardSkeleton />
+                    </>
+                )}
+
+                {/* Empty State */}
+                {!isLoading && isEmpty && <EmptyState filter={activeFilter} />}
+
+                {/* Client Cards */}
+                {!isLoading && !isEmpty && clients.map(renderClientCard)}
             </ScrollView>
         </SafeAreaView>
     );
 }
 
+// ============ STYLES ============
 
 const styles = StyleSheet.create({
     container: {
@@ -517,6 +618,10 @@ const styles = StyleSheet.create({
         borderLeftWidth: 4,
         borderLeftColor: colors.warning,
     },
+    clientCardAtRisk: {
+        borderLeftWidth: 4,
+        borderLeftColor: '#F59E0B',
+    },
     cardHeader: {
         padding: horizontalScale(16),
         justifyContent: 'space-between',
@@ -538,11 +643,25 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 2,
+        overflow: 'hidden',
     },
     avatar: {
         width: '100%',
         height: '100%',
         borderRadius: horizontalScale(24),
+    },
+    avatarPlaceholder: {
+        width: '100%',
+        height: '100%',
+        borderRadius: horizontalScale(24),
+        backgroundColor: colors.primaryDark,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarPlaceholderText: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
     clientInfo: {
         flex: 1,
@@ -557,54 +676,24 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: colors.textPrimary,
     },
-    activeStatus: {
-        backgroundColor: '#DCFCE7',
-        paddingHorizontal: horizontalScale(6),
-        paddingVertical: verticalScale(2),
-        borderRadius: horizontalScale(4),
-    },
-    activeStatusText: {
-        fontSize: ScaleFontSize(10),
-        fontWeight: '700',
-        color: '#166534',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    newStatus: {
-        backgroundColor: '#DBEAFE',
-        paddingHorizontal: horizontalScale(6),
-        paddingVertical: verticalScale(2),
-        borderRadius: horizontalScale(4),
-    },
-    newStatusText: {
-        fontSize: ScaleFontSize(10),
-        fontWeight: '700',
-        color: '#1E40AF',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    overdueStatus: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: horizontalScale(4),
-        backgroundColor: 'rgba(226, 185, 59, 0.2)',
-        paddingHorizontal: horizontalScale(6),
-        paddingVertical: verticalScale(2),
-        borderRadius: horizontalScale(4),
-    },
-    overdueStatusText: {
-        fontSize: ScaleFontSize(10),
-        fontWeight: '700',
-        color: '#92400E',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
     clientEmail: {
         fontSize: ScaleFontSize(13),
         color: colors.textSecondary,
     },
-    moreButton: {
-        padding: horizontalScale(4),
+    // Status Badge
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: horizontalScale(8),
+        paddingVertical: verticalScale(3),
+        borderRadius: horizontalScale(4),
+        gap: horizontalScale(4),
+    },
+    statusBadgeText: {
+        fontSize: ScaleFontSize(10),
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     // Progress Section
     progressSection: {
@@ -648,7 +737,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#E5E7EB',
         borderRadius: horizontalScale(4),
         overflow: 'hidden',
-        marginVertical: verticalScale(10)
+        marginVertical: verticalScale(10),
     },
     progressBarFill: {
         height: '100%',
@@ -661,7 +750,8 @@ const styles = StyleSheet.create({
         borderTopColor: colors.border,
         gap: verticalScale(12),
     },
-    cardFooterOverdue: {
+    cardFooterWarning: {
+        backgroundColor: '#FFFBEB',
         borderTopColor: 'rgba(226, 185, 59, 0.3)',
     },
     infoBadges: {
@@ -743,136 +833,48 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#FFFFFF',
     },
-    // FAB
-    fab: {
-        position: 'absolute',
-        bottom: verticalScale(90),
-        right: horizontalScale(16),
-        shadowColor: colors.primaryDark,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 8,
+    // Loading Skeleton
+    skeleton: {
+        backgroundColor: '#E5E7EB',
+        borderRadius: horizontalScale(4),
     },
-    fabGradient: {
-        width: horizontalScale(56),
-        height: horizontalScale(56),
-        borderRadius: horizontalScale(28),
+    skeletonAvatar: {
+        width: horizontalScale(48),
+        height: horizontalScale(48),
+        borderRadius: horizontalScale(24),
+    },
+    skeletonInfo: {
+        flex: 1,
+        marginHorizontal: horizontalScale(12),
+        gap: verticalScale(8),
+    },
+    skeletonName: {
+        width: '60%',
+        height: verticalScale(16),
+    },
+    skeletonEmail: {
+        width: '80%',
+        height: verticalScale(12),
+    },
+    skeletonProgress: {
+        width: '100%',
+        height: verticalScale(60),
+    },
+    // Empty State
+    emptyState: {
         alignItems: 'center',
         justifyContent: 'center',
+        paddingVertical: verticalScale(60),
     },
-    // Modal Styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    modalContent: {
-        backgroundColor: colors.bgPrimary,
-        borderTopLeftRadius: horizontalScale(24),
-        borderTopRightRadius: horizontalScale(24),
-        maxHeight: '90%',
-    },
-    modalHeader: {
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        padding: horizontalScale(20),
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-    },
-    modalTitle: {
-        fontSize: ScaleFontSize(20),
-        fontWeight: '700',
+    emptyStateText: {
+        fontSize: ScaleFontSize(16),
+        fontWeight: '600',
         color: colors.textPrimary,
+        marginTop: verticalScale(16),
     },
-    modalSubtitle: {
-        fontSize: ScaleFontSize(13),
+    emptyStateSubtext: {
+        fontSize: ScaleFontSize(14),
         color: colors.textSecondary,
         marginTop: verticalScale(4),
-    },
-    closeButton: {
-        padding: horizontalScale(4),
-    },
-    modalBody: {
-        padding: horizontalScale(20),
-    },
-    inputGroup: {
-        marginBottom: verticalScale(16),
-    },
-    inputLabel: {
-        fontSize: ScaleFontSize(14),
-        fontWeight: '500',
-        color: colors.textPrimary,
-        marginBottom: verticalScale(8),
-    },
-    textInput: {
-        backgroundColor: colors.bgSecondary,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: horizontalScale(10),
-        paddingHorizontal: horizontalScale(16),
-        paddingVertical: verticalScale(14),
-        fontSize: ScaleFontSize(16),
-        color: colors.textPrimary,
-    },
-    genderRow: {
-        gap: horizontalScale(20),
-    },
-    genderOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: horizontalScale(8),
-    },
-    genderOptionActive: {},
-    radioOuter: {
-        width: horizontalScale(20),
-        height: horizontalScale(20),
-        borderRadius: horizontalScale(10),
-        borderWidth: 2,
-        borderColor: colors.border,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    radioOuterActive: {
-        borderColor: colors.success,
-    },
-    radioInner: {
-        width: horizontalScale(10),
-        height: horizontalScale(10),
-        borderRadius: horizontalScale(5),
-        backgroundColor: colors.success,
-    },
-    genderText: {
-        fontSize: ScaleFontSize(15),
-        color: colors.textPrimary,
-    },
-    modalFooter: {
-        padding: horizontalScale(20),
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        gap: horizontalScale(12),
-    },
-    cancelButton: {
-        flex: 1,
-        paddingVertical: verticalScale(14),
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: horizontalScale(10),
-        alignItems: 'center',
-    },
-    cancelButtonText: {
-        fontSize: ScaleFontSize(15),
-        color: colors.textPrimary,
-    },
-    nextButton: {
-        flex: 1,
-        paddingVertical: verticalScale(14),
-        borderRadius: horizontalScale(10),
-        alignItems: 'center',
-    },
-    nextButtonText: {
-        fontSize: ScaleFontSize(15),
-        color: '#FFFFFF',
-        fontWeight: '600',
     },
 });

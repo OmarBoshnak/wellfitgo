@@ -1,63 +1,90 @@
 import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { gradients, colors } from '@/src/constants/Themes';
 import { isRTL } from '@/src/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
-import { styles as profileStyles, SCREEN_WIDTH } from '../styles';
+import { styles as profileStyles } from '../styles';
 import { t, chartPeriodLabels } from '../translations';
 import { ChartPeriod, CHART_PERIODS } from '../types';
 
-interface WeightEntry {
+// ============ TYPES ============
+
+export interface ChartPoint {
     date: string;
-    dateAr?: string;
     weight: number;
-    feeling: string;
+    timestamp: number;
+    feeling?: string;
+}
+
+export interface ChartData {
+    points: ChartPoint[];
+    targetWeight: number;
+    minWeight: number;
+    maxWeight: number;
+    currentWeight: number;
+    startWeight: number;
 }
 
 interface WeightProgressChartProps {
     period: ChartPeriod;
     onPeriodChange: (period: ChartPeriod) => void;
-    weightHistory?: WeightEntry[];
-    targetWeight?: number;
-    projectedDate?: string;
-    projectedDateAr?: string;
+    chartData?: ChartData | null;
+    isLoading?: boolean;
 }
 
-// Default mock data
-const defaultWeightHistory: WeightEntry[] = [
-    { date: 'Nov 1', dateAr: 'نوف ١', weight: 75, feeling: '😐' },
-    { date: 'Nov 8', dateAr: 'نوف ٨', weight: 74, feeling: '😊' },
-    { date: 'Nov 15', dateAr: 'نوف ١٥', weight: 72.5, feeling: '😊' },
-    { date: 'Nov 22', dateAr: 'نوف ٢٢', weight: 71, feeling: '😃' },
-    { date: 'Nov 29', dateAr: 'نوف ٢٩', weight: 69.5, feeling: '😊' },
-    { date: 'Dec 6', dateAr: 'ديس ٦', weight: 68, feeling: '😊' },
-];
+// ============ FEELING EMOJIS ============
+
+const feelingEmojis: Record<string, string> = {
+    excellent: "🤩",
+    great: "😃",
+    good: "😊",
+    ok: "😐",
+    challenging: "😓",
+    very_hard: "😢",
+};
+
+// ============ HELPER FUNCTIONS ============
+
+function formatDateLabel(dateString: string): { en: string; ar: string } {
+    const date = new Date(dateString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthsAr = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const day = date.getDate();
+    const monthIndex = date.getMonth();
+
+    return {
+        en: `${months[monthIndex]} ${day}`,
+        ar: `${day} ${monthsAr[monthIndex]}`,
+    };
+}
+
+// ============ COMPONENT ============
 
 export function WeightProgressChart({
     period,
     onPeriodChange,
-    weightHistory = defaultWeightHistory,
-    targetWeight = 60,
-    projectedDate = 'March 2025 ',
-    projectedDateAr = 'مارس ٢٠٢٥ ',
+    chartData,
+    isLoading = false,
 }: WeightProgressChartProps) {
     // Calculate chart dimensions
-    const maxWeight = Math.max(...weightHistory.map(w => w.weight));
-    const minWeight = Math.min(...weightHistory.map(w => w.weight));
+    const points = chartData?.points ?? [];
+    const hasData = points.length > 0;
+
+    const maxWeight = hasData ? Math.max(...points.map(p => p.weight)) : 100;
+    const minWeight = hasData ? Math.min(...points.map(p => p.weight)) : 0;
     const range = maxWeight - minWeight || 1;
     const chartHeight = verticalScale(180);
 
-    // Data is displayed as-is, FlatList `inverted` prop handles RTL direction
-    const displayData = weightHistory;
-
-    const renderBar = ({ item, index }: { item: WeightEntry; index: number }) => {
+    const renderBar = ({ item, index }: { item: ChartPoint; index: number }) => {
         const heightPercent = ((item.weight - minWeight) / range) * 100;
         const barHeight = Math.max((heightPercent / 100) * chartHeight, verticalScale(20));
+        const dateLabel = formatDateLabel(item.date);
+        const emoji = item.feeling ? feelingEmojis[item.feeling] ?? "😊" : "";
 
         return (
             <View style={styles.barContainer}>
-                <Text style={styles.feeling}>{item.feeling}</Text>
+                <Text style={styles.feeling}>{emoji}</Text>
                 <Text style={styles.weightLabel}>{item.weight}kg</Text>
                 <LinearGradient
                     colors={gradients.primary}
@@ -66,11 +93,22 @@ export function WeightProgressChart({
                     style={[styles.bar, { height: barHeight }]}
                 />
                 <Text style={styles.dateLabel}>
-                    {isRTL ? item.dateAr : item.date}
+                    {isRTL ? dateLabel.ar : dateLabel.en}
                 </Text>
             </View>
         );
     };
+
+    const renderEmptyState = () => (
+        <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+                {isRTL ? "لا توجد بيانات وزن" : "No weight data"}
+            </Text>
+            <Text style={styles.emptySubtext}>
+                {isRTL ? "سيتم عرض الوزن هنا بعد التسجيل" : "Weight logs will appear here"}
+            </Text>
+        </View>
+    );
 
     return (
         <View style={profileStyles.chartCard}>
@@ -113,45 +151,56 @@ export function WeightProgressChart({
                 )}
             />
 
-            {/* Bar Chart */}
+            {/* Bar Chart or Loading/Empty */}
             <View style={styles.chartContainer}>
-                <FlatList
-                    horizontal
-                    data={displayData}
-                    keyExtractor={(item, index) => `${item.date}-${index}`}
-                    renderItem={renderBar}
-                    contentContainerStyle={[
-                        styles.barsContainer,
-                        isRTL && { flexGrow: 1, justifyContent: 'flex-end' }
-                    ]}
-                    showsHorizontalScrollIndicator={false}
-                    inverted={isRTL}
-                />
+                {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={colors.primaryDark} />
+                    </View>
+                ) : hasData ? (
+                    <FlatList
+                        horizontal
+                        data={points}
+                        keyExtractor={(item, index) => `${item.date}-${index}`}
+                        renderItem={renderBar}
+                        contentContainerStyle={[
+                            styles.barsContainer,
+                            isRTL && { flexGrow: 1, justifyContent: 'flex-end' }
+                        ]}
+                        showsHorizontalScrollIndicator={false}
+                        inverted={isRTL}
+                    />
+                ) : (
+                    renderEmptyState()
+                )}
             </View>
 
-            {/* Footer - Goal & Projected */}
-            <View style={styles.footer}>
-                <View style={[styles.footerRow, isRTL && styles.footerRowRTL]}>
-                    <View style={[styles.footerItem, isRTL && styles.footerItemRTL]}>
-                        <Text style={styles.footerValue}>{targetWeight} kg </Text>
-
-                        <Text style={styles.footerLabel}>
-                            {t.goal}:
-                        </Text>
-                    </View>
-                    <View style={[styles.footerItem, isRTL && styles.footerItemRTL]}>
-                        <Text style={styles.footerValue}>
-                            {isRTL ? projectedDateAr : projectedDate}
-                        </Text>
-                        <Text style={styles.footerLabel}>
-                            {t.projected}:
-                        </Text>
+            {/* Footer - Goal & Progress */}
+            {hasData && chartData && (
+                <View style={styles.footer}>
+                    <View style={[styles.footerRow, isRTL && styles.footerRowRTL]}>
+                        <View style={[styles.footerItem, isRTL && styles.footerItemRTL]}>
+                            <Text style={styles.footerValue}>{chartData.targetWeight} kg </Text>
+                            <Text style={styles.footerLabel}>
+                                {t.goal}:
+                            </Text>
+                        </View>
+                        <View style={[styles.footerItem, isRTL && styles.footerItemRTL]}>
+                            <Text style={[styles.footerValue, { color: colors.success }]}>
+                                -{(chartData.startWeight - chartData.currentWeight).toFixed(1)} kg
+                            </Text>
+                            <Text style={styles.footerLabel}>
+                                {isRTL ? "الفقدان" : "Lost"}:
+                            </Text>
+                        </View>
                     </View>
                 </View>
-            </View>
+            )}
         </View>
     );
 }
+
+// ============ STYLES ============
 
 const styles = StyleSheet.create({
     chartContainer: {
@@ -219,5 +268,25 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         fontWeight: '600',
         color: '#1E293B',
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: ScaleFontSize(16),
+        fontWeight: '600',
+        color: colors.textSecondary,
+    },
+    emptySubtext: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        marginTop: verticalScale(4),
     },
 });

@@ -6,30 +6,38 @@ import { colors, gradients } from '@/src/constants/Themes';
 import { horizontalScale } from '@/src/utils/scaling';
 import { styles } from '../styles';
 import { t } from '../translations';
-import { MealPlanCreatorFlow } from '@/src/features/meal-plans';
-import type { ClientInfo } from '@/src/features/meal-plans';
+import { DietPlanSelector } from './DietPlanSelector';
+import { Id } from '@/convex/_generated/dataModel';
 
 interface ActionButtonsProps {
-    client?: ClientInfo;
+    client?: {
+        id: Id<"users">;
+        name: string;
+        nameAr?: string;
+        currentWeight: number;
+        targetWeight: number;
+        goal: string;
+    };
+    onSendMessage?: () => void;
+    onScheduleCall?: () => void;
 }
 
-export function ActionButtons({ client }: ActionButtonsProps) {
-    const [showCreatorFlow, setShowCreatorFlow] = useState(false);
-
-    // Default client for demo purposes
-    const defaultClient: ClientInfo = client || {
-        id: '1',
-        name: 'Ahmed Hassan',
-        nameAr: 'أحمد حسن',
-        currentWeight: 75,
-        targetWeight: 65,
-        goal: 'weight_loss',
-    };
+export function ActionButtons({
+    client,
+    onSendMessage,
+    onScheduleCall,
+}: ActionButtonsProps) {
+    const [showDietSelector, setShowDietSelector] = useState(false);
 
     return (
         <>
             <View style={styles.actionsContainer}>
-                <TouchableOpacity activeOpacity={0.9} style={styles.primaryActionWrapper}>
+                {/* Send Message Button */}
+                <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.primaryActionWrapper}
+                    onPress={onSendMessage}
+                >
                     <LinearGradient
                         colors={gradients.primary}
                         start={{ x: 0, y: 0 }}
@@ -40,30 +48,41 @@ export function ActionButtons({ client }: ActionButtonsProps) {
                         <Text style={styles.primaryActionText}>{t.sendMessage}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
+
+                {/* Create Meal Plan Button */}
                 <TouchableOpacity
                     style={styles.secondaryAction}
                     activeOpacity={0.7}
-                    onPress={() => setShowCreatorFlow(true)}
+                    onPress={() => setShowDietSelector(true)}
                 >
                     <FileText size={horizontalScale(18)} color={colors.primaryDark} />
                     <Text style={styles.secondaryActionText}>{t.createMealPlan}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryAction} activeOpacity={0.7}>
+
+                {/* Schedule Call Button */}
+                <TouchableOpacity
+                    style={styles.secondaryAction}
+                    activeOpacity={0.7}
+                    onPress={onScheduleCall}
+                >
                     <Calendar size={horizontalScale(18)} color={colors.primaryDark} />
                     <Text style={styles.secondaryActionText}>{t.scheduleCall}</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Carousel Flow - All 4 screens with smooth transitions */}
-            <MealPlanCreatorFlow
-                visible={showCreatorFlow}
-                client={defaultClient}
-                onClose={() => setShowCreatorFlow(false)}
-                onComplete={() => {
-                    setShowCreatorFlow(false);
-                    // TODO: Show success toast
-                }}
-            />
+            {/* Diet Plan Selector Modal */}
+            {client && (
+                <DietPlanSelector
+                    visible={showDietSelector}
+                    clientId={client.id}
+                    clientName={client.name}
+                    onClose={() => setShowDietSelector(false)}
+                    onSuccess={() => {
+                        // Optionally refresh the meal plan tab
+                    }}
+                />
+            )}
         </>
     );
 }
+

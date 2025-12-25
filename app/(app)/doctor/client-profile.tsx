@@ -1,4 +1,9 @@
-// Re-export from feature module
-// This file exists for Expo Router routing
-export { default } from '@/src/features/clients/screens/ClientProfile';
+import React from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import ClientProfileScreen from '@/src/features/clients/screens/ClientProfile';
 
+export default function ClientProfileRoute() {
+    const { id } = useLocalSearchParams<{ id: string }>();
+
+    return <ClientProfileScreen clientId={id} />;
+}

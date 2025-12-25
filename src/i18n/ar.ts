@@ -248,3 +248,59 @@ export const clientNames: Record<string, string> = {
 export const translateName = (name: string): string => {
     return clientNames[name] || name;
 };
+
+// ============ ATTENTION DASHBOARD TRANSLATIONS ============
+export const attentionTranslations = {
+    // Status messages
+    unreadMessage: isRTL ? 'رسالة غير مقروءة' : 'Unread message',
+    weightGain: isRTL ? 'زيادة +{x} كجم هذا الأسبوع' : 'Weight +{x}kg this week',
+    noCheckinDays: isRTL ? 'لا تسجيل منذ {x} أيام' : 'No check-in for {x} days',
+    noCheckinYet: isRTL ? 'لا توجد تسجيلات وزن بعد' : 'No weigh-ins yet',
+
+    // Empty state
+    noClientsNeedAttention: isRTL ? 'لا يوجد عملاء يحتاجون انتباه' : 'No clients need attention',
+    allClientsOnTrack: isRTL ? 'جميع العملاء على المسار الصحيح! 🎉' : 'All clients are on track! 🎉',
+
+    // Loading state
+    loadingClients: isRTL ? 'جاري تحميل العملاء...' : 'Loading clients...',
+
+    // Error state
+    errorLoadingClients: isRTL ? 'فشل في تحميل العملاء' : 'Failed to load clients',
+    tapToRetry: isRTL ? 'اضغط لإعادة المحاولة' : 'Tap to retry',
+
+    // Time ago
+    justNow: isRTL ? 'الآن' : 'just now',
+    minutesAgo: isRTL ? 'منذ {x} د' : '{x}m ago',
+    hoursAgo: isRTL ? 'منذ {x} س' : '{x}h ago',
+    daysAgo: isRTL ? 'منذ {x} ي' : '{x}d ago',
+    weeksAgo: isRTL ? 'منذ {x} أ' : '{x}w ago',
+};
+
+// ============ APPOINTMENTS TRANSLATIONS ============
+export const appointmentTranslations = {
+    // Status badges
+    startingSoon: isRTL ? 'يبدأ قريباً' : 'Starting soon',
+    inProgress: isRTL ? 'جاري الآن' : 'In progress',
+    upcoming: isRTL ? 'قادم' : 'Upcoming',
+
+    // Call types
+    videoCall: isRTL ? 'مكالمة فيديو' : 'Video call',
+    phoneCall: isRTL ? 'مكالمة هاتفية' : 'Phone call',
+
+    // Actions
+    startCall: isRTL ? 'بدء المكالمة' : 'Start call',
+    joinCall: isRTL ? 'انضمام' : 'Join',
+
+    // Duration
+    minutes: isRTL ? '{x} دقيقة' : '{x} min',
+
+    // Loading/Empty/Error
+    loadingAppointments: isRTL ? 'جاري تحميل المواعيد...' : 'Loading...',
+    errorLoadingAppointments: isRTL ? 'فشل في تحميل المواعيد' : 'Failed to load',
+    enjoyYourDay: isRTL ? 'استمتع بيومك الحر! 🎉' : 'Enjoy your free day! 🎉',
+
+    // Time
+    inXMinutes: isRTL ? 'خلال {x} دقيقة' : 'in {x} min',
+    now: isRTL ? 'الآن' : 'Now',
+};
+

@@ -304,6 +304,7 @@ function DayRow({ day, dayLabel, availability, onToggle, onFromChange, onToChang
                     onValueChange={() => onToggle(day)}
                     trackColor={{ true: '#ea5757', false: '#E5E7EB' }}
                     thumbColor="#fff"
+                    ios_backgroundColor="#e5e5e5"
                     style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }}
                 />
             </View>

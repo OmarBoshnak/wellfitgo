@@ -105,6 +105,7 @@ export const getEventsByDate = query({
                         ? `${client.firstName} ${client.lastName || ""}`.trim()
                         : "Unknown Client",
                     clientAvatar: client?.avatarUrl,
+                    clientPhone: client?.phone ?? null,
                 };
             })
         );
@@ -165,6 +166,102 @@ export const getEventsByDateRange = query({
                         ? `${client.firstName} ${client.lastName || ""}`.trim()
                         : "Unknown Client",
                     clientAvatar: client?.avatarUrl,
+                };
+            })
+        );
+
+        return enrichedEvents;
+    },
+});
+
+/**
+ * Get today's appointments for the dashboard
+ * Returns scheduled events for today with client info and calculated status
+ */
+export const getTodaysAppointments = query({
+    args: {
+        date: v.optional(v.string()), // Optional: override today's date (for testing)
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user || (user.role !== "coach" && user.role !== "admin")) {
+            return [];
+        }
+
+        // Use provided date or today's date
+        const today = args.date || new Date().toISOString().split("T")[0];
+        const limit = args.limit ?? 10;
+        const now = Date.now();
+
+        // Get events for today
+        let events;
+        if (user.role === "admin") {
+            events = await ctx.db
+                .query("calendarEvents")
+                .filter((q) =>
+                    q.and(
+                        q.eq(q.field("date"), today),
+                        q.eq(q.field("status"), "scheduled")
+                    )
+                )
+                .collect();
+        } else {
+            events = await ctx.db
+                .query("calendarEvents")
+                .withIndex("by_coach_date", (q) =>
+                    q.eq("coachId", user._id).eq("date", today)
+                )
+                .filter((q) => q.eq(q.field("status"), "scheduled"))
+                .collect();
+        }
+
+        // Sort by startAt timestamp
+        events.sort((a, b) => a.startAt - b.startAt);
+
+        // Limit results
+        events = events.slice(0, limit);
+
+        // Calculate duration (in minutes) from startTime and endTime
+        const calculateDuration = (startTime: string, endTime: string): number => {
+            const [startH, startM] = startTime.split(":").map(Number);
+            const [endH, endM] = endTime.split(":").map(Number);
+            return (endH * 60 + endM) - (startH * 60 + startM);
+        };
+
+        // Enrich with client info and calculate status
+        const enrichedEvents = await Promise.all(
+            events.map(async (event) => {
+                const client = await ctx.db.get(event.clientId);
+
+                // Calculate status based on current time
+                const minutesUntilStart = (event.startAt - now) / (1000 * 60);
+                let status: "upcoming" | "starting_soon" | "in_progress";
+
+                if (now >= event.startAt && now < event.endAt) {
+                    status = "in_progress";
+                } else if (minutesUntilStart <= 15 && minutesUntilStart > 0) {
+                    status = "starting_soon";
+                } else {
+                    status = "upcoming";
+                }
+
+                return {
+                    id: event._id,
+                    clientId: event.clientId,
+                    clientName: client
+                        ? `${client.firstName} ${client.lastName || ""}`.trim()
+                        : "Unknown Client",
+                    clientAvatar: client?.avatarUrl ?? null,
+                    clientPhone: client?.phone ?? null,
+                    date: event.date,
+                    startTime: event.startTime,
+                    endTime: event.endTime,
+                    type: event.type,
+                    duration: calculateDuration(event.startTime, event.endTime),
+                    status,
+                    reason: event.reason,
+                    notes: event.notes,
                 };
             })
         );

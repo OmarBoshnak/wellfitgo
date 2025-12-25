@@ -238,8 +238,8 @@ export default function PlansScreen() {
 
                 <View style={styles.planContent}>
                     {/* Header */}
-                    <View style={[styles.planHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                        <View style={[styles.clientRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.planHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                        <View style={[styles.clientRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <Image source={{ uri: plan.avatar }} style={styles.avatar} />
                             <Text style={styles.clientName}>{plan.clientName}</Text>
                         </View>
@@ -260,12 +260,12 @@ export default function PlansScreen() {
                     </View>
 
                     {/* Diet Program */}
-                    <Text style={[styles.dietProgram, { textAlign: isRTL ? 'right' : 'left' }]}>
+                    <Text style={[styles.dietProgram, { textAlign: isRTL ? 'left' : 'right' }]}>
                         {plan.dietProgram}
                     </Text>
 
                     {/* Week Info */}
-                    <View style={[styles.weekRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.weekRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <Text style={styles.weekText}>
                             {t.week} {plan.weekNumber} {plan.statusMessage === 'finishing' ? t.finishing : t.of + ' ' + t.ongoing}
                         </Text>
@@ -294,17 +294,17 @@ export default function PlansScreen() {
                     </View>
 
                     {/* Stats Row */}
-                    <View style={[styles.statsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.statsRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         {plan.status === 'good' && plan.mealsCompleted > 0 && (
                             <>
-                                <View style={[styles.statItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                                <View style={[styles.statItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                     <CheckCircle size={horizontalScale(14)} color="#27AE61" />
                                     <Text style={[styles.statText, { color: '#27AE61' }]}>
                                         {plan.statusMessage === 'finishing' ? t.almostDone : `${plan.mealsCompleted}/${plan.totalMeals} ${t.meals}`}
                                     </Text>
                                 </View>
                                 {plan.weightChange !== 0 && (
-                                    <View style={[styles.statItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                                    <View style={[styles.statItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                         <BarChart3 size={horizontalScale(14)} color="#27AE61" />
                                         <Text style={[styles.statText, { color: '#27AE61' }]}>
                                             {plan.weightChange > 0 ? '+' : ''}{plan.weightChange} kg
@@ -332,7 +332,7 @@ export default function PlansScreen() {
                             </>
                         )}
                         {plan.status === 'paused' && (
-                            <View style={[styles.statItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <View style={[styles.statItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                 <AlertCircle size={horizontalScale(14)} color="#EB5757" />
                                 <Text style={[styles.statText, { color: '#EB5757' }]}>{t.noActivity}</Text>
                             </View>
@@ -340,7 +340,7 @@ export default function PlansScreen() {
                     </View>
 
                     {/* Action Buttons */}
-                    <View style={[styles.actionButtons, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.actionButtons, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <TouchableOpacity
                             style={styles.primaryButton}
                             onPress={() => handleViewPlanDetails(plan)}
@@ -376,23 +376,23 @@ export default function PlansScreen() {
     const renderDraftCard = (draft: typeof mockDraftPlans[0]) => (
         <View key={draft.id} style={styles.draftCard}>
             {/* Title */}
-            <Text style={[styles.draftTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+            <Text style={[styles.draftTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                 {draft.title}
             </Text>
 
             {/* Details */}
             <View style={styles.draftDetails}>
-                <Text style={[styles.draftBasedOn, { textAlign: isRTL ? 'right' : 'left' }]}>
+                <Text style={[styles.draftBasedOn, { textAlign: isRTL ? 'left' : 'right' }]}>
                     {t.basedOn}: {draft.basedOn}
                 </Text>
-                <Text style={[styles.draftLastEdited, { textAlign: isRTL ? 'right' : 'left' }]}>
+                <Text style={[styles.draftLastEdited, { textAlign: isRTL ? 'left' : 'right' }]}>
                     {t.lastEdited}: {draft.lastEdited} {t.hoursAgo}
                 </Text>
             </View>
 
             {/* Progress */}
             <View style={styles.draftProgressSection}>
-                <View style={[styles.draftProgressHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.draftProgressHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <Text style={styles.draftProgressLabel}>{t.progress}</Text>
                     <Text style={styles.draftProgressPercent}>{draft.progressPercent}% {t.complete}</Text>
                 </View>
@@ -407,7 +407,7 @@ export default function PlansScreen() {
             </View>
 
             {/* Action Buttons */}
-            <View style={[styles.draftActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.draftActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 <TouchableOpacity style={styles.deleteButton}>
                     <Text style={styles.deleteButtonText}>{t.delete}</Text>
                 </TouchableOpacity>
@@ -462,21 +462,18 @@ export default function PlansScreen() {
     return (
         <SafeAreaView edges={['top']} style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 <Text style={styles.title}>{t.plans}</Text>
-                <View style={[styles.headerActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.headerActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <TouchableOpacity style={styles.headerButton}>
                         <Search size={horizontalScale(24)} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerButton}>
-                        <Filter size={horizontalScale(24)} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
 
             {/* Tabs */}
             <View style={styles.tabsContainer}>
-                <View style={[styles.tabsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.tabsRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     {renderTab('active', t.activePlans, mockActivePlans.length)}
                     {renderTab('drafts', t.drafts, mockDraftPlans.length)}
                     {renderTab('programs', t.dietPrograms)}
@@ -488,9 +485,9 @@ export default function PlansScreen() {
                 {activeTab === 'active' && (
                     <>
                         {/* Section Header */}
-                        <View style={[styles.sectionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={[styles.sectionHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <Text style={styles.sectionTitle}>{t.activeClientPlans}</Text>
-                            <TouchableOpacity style={[styles.categoryButton, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <TouchableOpacity style={[styles.categoryButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                 <Text style={styles.categoryButtonText}>{t.allCategories}</Text>
                             </TouchableOpacity>
                         </View>
@@ -508,10 +505,10 @@ export default function PlansScreen() {
                     <>
                         {/* Section Header */}
                         <View style={styles.draftSectionHeader}>
-                            <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.draftPlans}
                             </Text>
-                            <Text style={[styles.draftSectionDescription, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.draftSectionDescription, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.draftDescription}
                             </Text>
                         </View>
@@ -629,6 +626,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgSecondary,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
+        paddingHorizontal: horizontalScale(16),
     },
     tabsRow: {
         width: '100%',

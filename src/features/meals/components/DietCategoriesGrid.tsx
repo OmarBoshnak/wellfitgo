@@ -80,7 +80,7 @@ export default function DietCategoriesGrid({ onCategorySelect, onCreateCustom, o
             </View>
             <View style={styles.categoryInfo}>
                 <Text style={styles.categoryName}>{category.name}</Text>
-                <View style={[styles.categoryMeta, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.categoryMeta, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <Text style={styles.categoryNameAr}>{category.nameAr}</Text>
                     <View style={styles.dotSeparator} />
                     <Text style={styles.categoryCount}>{category.count} {t.programs}</Text>
@@ -90,8 +90,8 @@ export default function DietCategoriesGrid({ onCategorySelect, onCreateCustom, o
     );
 
     const renderHeader = () => (
-        <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+        <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+            <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
                 <Text style={styles.headerLabel}>{t.categories}</Text>
                 <Text style={styles.headerText}>{t.chooseCategory}</Text>
             </View>

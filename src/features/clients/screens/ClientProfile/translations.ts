@@ -37,6 +37,40 @@ export const t = {
     // Weight chart footer
     goal: isRTL ? 'الهدف' : 'Goal',
     projected: isRTL ? 'المتوقع' : 'Projected ',
+    // ============ MEAL PLAN TAB ============
+    mealPlans: isRTL ? 'خطط الوجبات' : 'Meal Plans',
+    noMealPlans: isRTL ? 'لا توجد خطط وجبات بعد' : 'No meal plans yet',
+    createFirstPlan: isRTL ? 'إنشاء أول خطة' : 'Create First Plan',
+    active: isRTL ? 'نشط' : 'Active',
+    draft: isRTL ? 'مسودة' : 'Draft',
+    published: isRTL ? 'منشور' : 'Published',
+    archived: isRTL ? 'مؤرشف' : 'Archived',
+    viewPlan: isRTL ? 'عرض الخطة' : 'View Plan',
+    archivePlan: isRTL ? 'أرشفة الخطة' : 'Archive Plan',
+    mealsProgress: isRTL ? 'تقدم الوجبات' : 'Meals Progress',
+    // ============ NOTES TAB ============
+    coachNotes: isRTL ? 'ملاحظات الدكتور' : 'Coach Notes',
+    notesPlaceholder: isRTL ? 'اكتب ملاحظاتك عن العميل هنا...' : 'Write your notes about the client here...',
+    saving: isRTL ? 'جاري الحفظ...' : 'Saving...',
+    saved: isRTL ? 'تم الحفظ ✓' : 'Saved ✓',
+    lastSaved: isRTL ? 'آخر حفظ' : 'Last saved',
+    characters: isRTL ? 'حرف' : 'characters',
+    // ============ SETTINGS TAB ============
+    subscription: isRTL ? 'الاشتراك' : 'Subscription',
+    subscriptionActive: isRTL ? 'نشط' : 'Active',
+    subscriptionPaused: isRTL ? 'متوقف' : 'Paused',
+    subscriptionTrial: isRTL ? 'تجريبي' : 'Trial',
+    subscriptionCancelled: isRTL ? 'ملغي' : 'Cancelled',
+    notifications: isRTL ? 'الإشعارات' : 'Notifications',
+    mealReminders: isRTL ? 'تذكير الوجبات' : 'Meal Reminders',
+    weeklyCheckin: isRTL ? 'تذكير الوزن الأسبوعي' : 'Weekly Check-in',
+    coachMessages: isRTL ? 'رسائل المدرب' : 'Coach Messages',
+    dangerZone: isRTL ? 'منطقة الخطر' : 'Danger Zone',
+    archiveClient: isRTL ? 'أرشفة العميل' : 'Archive Client',
+    archiveClientDesc: isRTL ? 'سيتم إلغاء اشتراك العميل وإخفاؤه' : 'Client will be deactivated and hidden',
+    confirmArchive: isRTL ? 'هل أنت متأكد؟' : 'Are you sure?',
+    cancel: isRTL ? 'إلغاء' : 'Cancel',
+    confirm: isRTL ? 'تأكيد' : 'Confirm',
 };
 
 // Chart period labels mapping
@@ -47,3 +81,4 @@ export const chartPeriodLabels: Record<string, string> = {
     '1Y': t.chartPeriod1Y,
     'All': t.chartPeriodAll,
 };
+

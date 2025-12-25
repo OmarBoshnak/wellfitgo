@@ -1,17 +1,25 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, ArrowRight, Mail, Phone, MapPin, MoreVertical } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Mail, Phone } from 'lucide-react-native';
 import { gradients } from '@/src/constants/Themes';
 import { isRTL } from '@/src/constants/translations';
 import { horizontalScale } from '@/src/utils/scaling';
 import { styles } from '../styles';
 import { t } from '../translations';
-import { Client } from '../mock';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Client interface matching Convex data
+interface ClientData {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    avatar: string | null;
+}
+
 interface ProfileHeaderProps {
-    client: Client;
+    client: ClientData;
     onBack: () => void;
     onCall: () => void;
     onEmail: () => void;
@@ -24,6 +32,7 @@ export function ProfileHeader({
     onEmail
 }: ProfileHeaderProps) {
     const insets = useSafeAreaInsets();
+
     return (
         <LinearGradient
             colors={gradients.primary}
@@ -49,7 +58,15 @@ export function ProfileHeader({
             {/* Profile Info */}
             <View style={styles.profileInfo}>
                 <View style={styles.avatarContainer}>
-                    <Image source={{ uri: client.avatar }} style={styles.avatar} />
+                    {client.avatar ? (
+                        <Image source={{ uri: client.avatar }} style={styles.avatar} />
+                    ) : (
+                        <View style={styles.avatarPlaceholder}>
+                            <Text style={styles.avatarPlaceholderText}>
+                                {client.name.charAt(0).toUpperCase()}
+                            </Text>
+                        </View>
+                    )}
                 </View>
                 <Text style={styles.clientName}>{client.name}</Text>
                 <View style={styles.premiumBadge}>
@@ -57,13 +74,19 @@ export function ProfileHeader({
                 </View>
                 {/* Contact Icons */}
                 <View style={[styles.contactIcons, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    <TouchableOpacity onPress={onEmail}>
-                        <Mail size={horizontalScale(18)} color="rgba(255,255,255,0.9)" />
-                    </TouchableOpacity>
-                    <View style={styles.iconDivider} />
-                    <TouchableOpacity onPress={onCall}>
-                        <Phone size={horizontalScale(18)} color="rgba(255,255,255,0.9)" />
-                    </TouchableOpacity>
+                    {client.email && (
+                        <TouchableOpacity onPress={onEmail}>
+                            <Mail size={horizontalScale(18)} color="rgba(255,255,255,0.9)" />
+                        </TouchableOpacity>
+                    )}
+                    {client.email && client.phone && (
+                        <View style={styles.iconDivider} />
+                    )}
+                    {client.phone && (
+                        <TouchableOpacity onPress={onCall}>
+                            <Phone size={horizontalScale(18)} color="rgba(255,255,255,0.9)" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </LinearGradient>

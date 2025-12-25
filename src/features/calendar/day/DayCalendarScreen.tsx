@@ -17,12 +17,13 @@ import FloatingAddButton from './components/FloatingAddButton';
 import AddCallModal from './components/AddCallModal';
 import EditEventModal from './components/EditEventModal';
 import ClientProfileModal from './components/ClientProfileModal';
+import { usePhoneCall } from '@/src/hooks/usePhoneCall';
 
 // ============================================================
 // HELPER: Convert Convex event to DayEvent for rendering
 // ============================================================
 
-const convertToDisplayEvent = (event: any): DayEvent => {
+const convertToDisplayEvent = (event: any): DayEvent & { clientPhone?: string } => {
     // Parse start time for display
     const [startHour, startMin] = event.startTime.split(':').map(Number);
     const displayHour = startHour > 12 ? startHour - 12 : startHour === 0 ? 12 : startHour;
@@ -43,6 +44,7 @@ const convertToDisplayEvent = (event: any): DayEvent => {
         clientName: event.clientName || 'Unknown',
         clientAvatar: event.clientAvatar,
         clientId: event.clientId, // Pass clientId for profile fetching
+        clientPhone: event.clientPhone, // For phone calls
         actionLabel: t.call,
         colorScheme: 'green',
     };
@@ -62,6 +64,9 @@ export const DayCalendarScreen: React.FC = () => {
     const [selectedEvent, setSelectedEvent] = useState<any>(null);
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
     const [optimisticEvents, setOptimisticEvents] = useState<any[]>([]);
+
+    // Phone call hook
+    const { callClient } = usePhoneCall();
 
     // Format date for Convex query
     const isoDate = currentDate.toISOString().split('T')[0];
@@ -85,8 +90,8 @@ export const DayCalendarScreen: React.FC = () => {
         rawEventsByHour[hour] = event;
     });
 
-    // Group events by hour for rendering
-    const eventsByHour: Record<number, DayEvent> = {};
+    // Group events by hour for rendering (extended with clientPhone)
+    const eventsByHour: Record<number, DayEvent & { clientPhone?: string }> = {};
     allEvents.forEach((event) => {
         const [hour] = event.startTime.split(':').map(Number);
         eventsByHour[hour] = convertToDisplayEvent(event);
@@ -180,6 +185,14 @@ export const DayCalendarScreen: React.FC = () => {
                                     hour={hour}
                                     onPress={() => console.log('Event pressed:', event.id)}
                                     onActionPress={() => console.log('Action pressed:', event.id)}
+                                    onPhoneCallPress={() => {
+                                        // Initiate phone call to client
+                                        callClient(
+                                            event.clientId || '',
+                                            event.clientName,
+                                            event.clientPhone
+                                        );
+                                    }}
                                     onEditPress={() => handleEditPress(rawEvent)}
                                     onAvatarPress={() => handleAvatarPress(event.clientId)}
                                 />

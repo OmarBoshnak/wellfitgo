@@ -11,7 +11,10 @@ export type SectionType =
     | 'weekCards'
     | 'chart'
     | 'activity'
-    | 'placeholder';
+    | 'placeholder'
+    | 'mealPlanContent'
+    | 'notesContent'
+    | 'settingsContent';
 
 export interface SectionItem {
     id: string;

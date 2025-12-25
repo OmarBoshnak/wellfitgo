@@ -13,6 +13,7 @@ interface DayEventCardProps {
     hour: number;
     onPress?: () => void;
     onActionPress?: () => void;
+    onPhoneCallPress?: () => void; // Phone call handler
     onEditPress?: () => void; // 3-dot menu press
     onAvatarPress?: () => void; // Avatar tap for profile modal
 }
@@ -53,6 +54,7 @@ export const DayEventCard: React.FC<DayEventCardProps> = ({
     hour,
     onPress,
     onActionPress,
+    onPhoneCallPress,
     onEditPress,
     onAvatarPress,
 }) => {
@@ -170,7 +172,7 @@ export const DayEventCard: React.FC<DayEventCardProps> = ({
                                     flexDirection: isRTL ? 'row' : 'row-reverse'
                                 }
                             ]}
-                            onPress={onActionPress}
+                            onPress={event.type === 'phone' ? onPhoneCallPress : onActionPress}
                         >
                             <Text style={[
                                 styles.actionButtonText,

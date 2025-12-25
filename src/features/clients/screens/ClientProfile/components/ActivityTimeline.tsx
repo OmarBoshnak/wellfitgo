@@ -4,7 +4,16 @@ import { isRTL } from '@/src/constants/translations';
 import { horizontalScale } from '@/src/utils/scaling';
 import { styles } from '../styles';
 import { t } from '../translations';
-import { Activity } from '../mock';
+
+// Activity interface matching Convex data
+interface Activity {
+    id: string;
+    type: "weight" | "meals" | "message" | "missed" | "plan" | "water";
+    color: string;
+    date: string;
+    text: string;
+    subtext: string;
+}
 
 interface ActivityTimelineProps {
     activities: Activity[];

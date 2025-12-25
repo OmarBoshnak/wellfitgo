@@ -61,10 +61,8 @@ export const getOrCreateUser = mutation({
             preferredUnits: "metric", // Default to metric
             notificationSettings: {
                 pushEnabled: true,
-                mealReminders: true,
-                weeklyCheckin: true,
-                coachMessages: true,
-                motivational: true,
+                newMessages: true,
+                appointments: true,
             },
             isActive: true,
             lastActiveAt: now,
@@ -220,10 +218,8 @@ export const completeOnboarding = mutation({
             lastActiveAt: now,
             notificationSettings: {
                 pushEnabled: true,
-                mealReminders: true,
-                weeklyCheckin: true,
-                coachMessages: true,
-                motivational: true,
+                newMessages: true,
+                appointments: true,
             },
         };
 
@@ -267,12 +263,8 @@ function calculateDOB(age: number): string {
 export const updateNotificationSettings = mutation({
     args: {
         pushEnabled: v.optional(v.boolean()),
-        mealReminders: v.optional(v.boolean()),
-        weeklyCheckin: v.optional(v.boolean()),
-        coachMessages: v.optional(v.boolean()),
-        motivational: v.optional(v.boolean()),
-        quietHoursStart: v.optional(v.string()),
-        quietHoursEnd: v.optional(v.string()),
+        newMessages: v.optional(v.boolean()),
+        appointments: v.optional(v.boolean()),
     },
     handler: async (ctx, args) => {
         const user = await requireAuth(ctx);
@@ -291,6 +283,82 @@ export const updateNotificationSettings = mutation({
         });
 
         return await ctx.db.get(user._id);
+    },
+});
+
+/**
+ * Update language and regional settings
+ */
+export const updateRegionalSettings = mutation({
+    args: {
+        preferredLanguage: v.optional(v.union(v.literal("ar"), v.literal("en"))),
+        dateFormat: v.optional(v.union(
+            v.literal("MM/DD/YYYY"),
+            v.literal("DD/MM/YYYY"),
+            v.literal("YYYY-MM-DD")
+        )),
+        timeFormat: v.optional(v.union(v.literal("12h"), v.literal("24h"))),
+        timezone: v.optional(v.string()),
+        autoDetectTimezone: v.optional(v.boolean()),
+        firstDayOfWeek: v.optional(v.union(
+            v.literal("saturday"),
+            v.literal("sunday"),
+            v.literal("monday")
+        )),
+    },
+    handler: async (ctx, args) => {
+        const user = await requireAuth(ctx);
+
+        const updates: Record<string, unknown> = { updatedAt: Date.now() };
+
+        // Update language if provided
+        if (args.preferredLanguage !== undefined) {
+            updates.preferredLanguage = args.preferredLanguage;
+        }
+
+        // Build regional settings update
+        const regionalUpdates: Record<string, unknown> = {};
+        if (args.dateFormat !== undefined) regionalUpdates.dateFormat = args.dateFormat;
+        if (args.timeFormat !== undefined) regionalUpdates.timeFormat = args.timeFormat;
+        if (args.timezone !== undefined) regionalUpdates.timezone = args.timezone;
+        if (args.autoDetectTimezone !== undefined) regionalUpdates.autoDetectTimezone = args.autoDetectTimezone;
+        if (args.firstDayOfWeek !== undefined) regionalUpdates.firstDayOfWeek = args.firstDayOfWeek;
+
+        if (Object.keys(regionalUpdates).length > 0) {
+            updates.regionalSettings = {
+                ...user.regionalSettings,
+                ...regionalUpdates,
+            };
+        }
+
+        await ctx.db.patch(user._id, updates);
+        return await ctx.db.get(user._id);
+    },
+});
+
+/**
+ * Get notification settings for the current user
+ * Returns safe defaults if settings are missing
+ */
+export const getNotificationSettings = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) {
+            return null;
+        }
+
+        // Return settings with safe defaults if any field is missing
+        const defaults = {
+            pushEnabled: true,
+            newMessages: true,
+            appointments: true,
+        };
+
+        return {
+            ...defaults,
+            ...user.notificationSettings,
+        };
     },
 });
 

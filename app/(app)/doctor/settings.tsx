@@ -3,7 +3,7 @@
  * Features: Profile header with avatar upload, menu sections (Account, Work, Support, Other), Sign Out
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -24,16 +24,7 @@ import {
     User,
     Bell,
     Globe,
-    BarChart3,
-    Calendar,
     Users,
-    HelpCircle,
-    MessageCircle,
-    Star,
-    FileText,
-    Lock,
-    Info,
-    LogOut,
     ChevronRight,
     ChevronLeft,
     Camera,
@@ -42,6 +33,7 @@ import {
 import { colors } from '@/src/theme';
 import { isRTL } from '@/src/i18n';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { SegmentedControl } from '@/src/component/common/SegmentedControl';
 
 // =============================================================================
 // TRANSLATIONS
@@ -144,6 +136,33 @@ export default function DoctorSettingsScreen() {
     const router = useRouter();
     const user = useQuery(api.users.currentUser);
     const dashboardStats = useQuery(api.users.getDashboardStats);
+    const updateProfile = useMutation(api.users.updateProfile);
+
+    // Language state - synced with Convex
+    const [languageIndex, setLanguageIndex] = useState(user?.preferredLanguage === 'en' ? 1 : 0);
+    const [isLanguageLoaded, setIsLanguageLoaded] = useState(false);
+
+    // Sync language from Convex on load
+    useEffect(() => {
+        if (user && !isLanguageLoaded) {
+            setLanguageIndex(user.preferredLanguage === 'en' ? 1 : 0);
+            setIsLanguageLoaded(true);
+        }
+    }, [user, isLanguageLoaded]);
+
+    // Handle language change - save to Convex
+    const handleLanguageChange = async (index: number) => {
+        setLanguageIndex(index);
+        const newLang = index === 1 ? 'en' : 'ar';
+        try {
+            await updateProfile({ preferredLanguage: newLang as 'ar' | 'en' });
+            // Note: Full app language switch would require app restart or context refresh
+        } catch (error) {
+            console.error('Failed to update language:', error);
+            // Revert on error
+            setLanguageIndex(index === 1 ? 0 : 1);
+        }
+    };
 
     // Avatar upload state
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -322,11 +341,24 @@ export default function DoctorSettingsScreen() {
                             label={t.notifications}
                             onPress={() => router.push('/(app)/doctor/notification-settings')}
                         />
-                        <MenuItem
-                            icon={<Globe size={20} color="#355dfd" />}
-                            label={t.language}
-                            onPress={() => { }}
-                        />
+
+                        {/* Language Toggle - Inline */}
+                        <View style={[styles.languageRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                            <View style={[styles.menuItemLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={styles.menuIconContainer}>
+                                    <Globe size={20} color="#355dfd" />
+                                </View>
+                                <Text style={[styles.menuLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
+                                    {isRTL ? 'اللغة' : 'Language'}
+                                </Text>
+                            </View>
+                            <SegmentedControl
+                                options={['العربي', 'EN']}
+                                selected={languageIndex}
+                                onChange={handleLanguageChange}
+                                width={100}
+                            />
+                        </View>
                     </MenuSection>
 
 
@@ -489,6 +521,14 @@ const styles = StyleSheet.create({
     },
     // Menu Item
     menuItem: {
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(14),
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    languageRow: {
         paddingHorizontal: horizontalScale(16),
         paddingVertical: verticalScale(14),
         alignItems: 'center',

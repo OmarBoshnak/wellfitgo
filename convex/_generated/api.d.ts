@@ -8,12 +8,17 @@
  * @module
  */
 
+import type * as attention from "../attention.js";
 import type * as auth from "../auth.js";
 import type * as calendar from "../calendar.js";
 import type * as chat from "../chat.js";
+import type * as clientProfile from "../clientProfile.js";
+import type * as clients from "../clients.js";
 import type * as coachProfiles from "../coachProfiles.js";
 import type * as mealCompletions from "../mealCompletions.js";
+import type * as recentActivity from "../recentActivity.js";
 import type * as users from "../users.js";
+import type * as weeklyActivity from "../weeklyActivity.js";
 
 import type {
   ApiFromModules,
@@ -22,12 +27,17 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  attention: typeof attention;
   auth: typeof auth;
   calendar: typeof calendar;
   chat: typeof chat;
+  clientProfile: typeof clientProfile;
+  clients: typeof clients;
   coachProfiles: typeof coachProfiles;
   mealCompletions: typeof mealCompletions;
+  recentActivity: typeof recentActivity;
   users: typeof users;
+  weeklyActivity: typeof weeklyActivity;
 }>;
 
 /**
