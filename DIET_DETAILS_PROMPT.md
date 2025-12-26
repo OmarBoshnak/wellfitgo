@@ -1,86 +1,178 @@
 # Role: Senior Frontend Engineer (React Native + Convex)
 
 **Context:**
-You are refactoring the `DietDetailsView` component (`src/features/meals/components/DietDetailsView.tsx`).
-Currently, it uses hardcoded data (`DIET_DETAILS`, `MEALS`).
-The goal is to fetch full diet details from Convex (`dietPlans` table) and handle both "General" (static) and "Daily" (weekly) formats.
+You are refactoring the Diet Details screen in the WellFitGo app.
+Component: `src/features/meals/components/DietDetailsView.tsx`
+
+**Current problems:**
+*   The component relies on hardcoded constants (`DIET_DETAILS`, `MEALS`).
+*   It does not reflect the real structure of the `dietPlans` table.
+*   It does not properly support both "General" and "Daily" (weekly) diet formats.
+
+The goal is to make this screen 100% data-driven, aligned strictly with `convex/schema.ts`, and production-ready.
+
+**IMPORTANT (Read First):**
+Before implementing anything:
+*   Read `convex/schema.ts` fully, especially the `dietPlans` definition.
+*   Do NOT invent fields, enums, or structures.
+*   Use only what exists in the schema.
+*   Preserve existing layout, spacing, and UI behavior.
+*   If the UI expects data in a different shape than the schema, map it explicitly.
+*   If something is missing in the schema, explain it instead of guessing.
 
 **Files of Interest:**
 - UI: `src/features/meals/components/DietDetailsView.tsx`
-- Schema: `convex/schema.ts` (`dietPlans`)
+- Schema: `convex/schema.ts` (dietPlans)
+- Hooks folder: `src/features/meals/hooks/`
 
 ---
 
 ## 1. The Mission
 
-Connect `DietDetailsView` to Convex.
+Refactor `DietDetailsView` to fetch and render real diet plan data from Convex.
 
-1.  **Fetch**: Get the full diet plan details by ID.
-2.  **Format Handling**:
-    *   If `format === 'general'`: Show the list of meals (standard view).
-    *   If `format === 'daily'`: Add a **Day Selector** (Saturday - Friday) to the UI. When a day is selected, show the meals for that specific day.
-3.  **Refactor**: Remove all hardcoded data constants.
+**Functional Requirements**:
+1.  Fetch a full diet plan by ID from Convex.
+2.  Support both diet formats:
+    *   `format === 'general'`
+    *   `format === 'daily'`
+3.  Remove all hardcoded diet/meal constants.
+4.  Keep the UI visually identical, but fully dynamic.
 
 ---
 
 ## 2. Backend Implementation (Convex)
 
-Update `convex/plans.ts`.
+Update or create `convex/plans.ts`.
 
 ### Query: `getDietDetails`
-- **Arguments**: `{ id: Id<"dietPlans"> }`
-- **Logic**:
-  1. Fetch the plan by ID.
-  2. Return the full object.
-  3. (Optional) You may want to compute total calories/macros server-side if they aren't explicitly stored, but `targetCalories` is usually sufficient for the header.
+
+**Arguments**:
+```typescript
+{ id: Id<"dietPlans"> }
+```
+
+**Logic**:
+1.  Fetch the diet plan by ID.
+2.  Return the full document exactly as stored.
+3.  Do not reshape the data unnecessarily.
+4.  Do not compute fake values. `targetCalories` is sufficient for the header (do not invent macros if not present).
 
 ---
 
 ## 3. Frontend Implementation
 
 ### A. Hook
-`src/features/meals/hooks/useDietDetails.ts`
-- Wrap `useQuery(api.plans.getDietDetails, { id })`.
+Create `src/features/meals/hooks/useDietDetails.ts`.
+
+**Responsibilities**:
+*   Wrap `useQuery(api.plans.getDietDetails, { id })`.
+*   Return `{ plan, isLoading, error }`.
+*   No transformation logic here beyond basic null safety.
 
 ### B. Component Refactor
-`DietDetailsView.tsx`
+`src/features/meals/components/DietDetailsView.tsx`
 
-**Props Update**:
-- Remove the old `diet` object prop.
-- Add `dietId: string`.
-
-**State**:
-- `selectedDay`: string (default to current day name or 'saturday'). Used only if `format === 'daily'`.
-- `expandedMeal`: string | null (for accordion).
-
-**Rendering Logic**:
-1.  **Header/Summary**:
-    *   Use `plan.name`, `plan.description`, `plan.targetCalories`.
-    *   Tags: Use `plan.tags`.
-2.  **Day Selector (Conditional)**:
-    *   Check `plan.format === 'daily'`.
-    *   If true, render a horizontal scrollable list of days (Sat, Sun, Mon...).
-    *   Highlight the `selectedDay`.
-3.  **Meals List**:
-    *   Determine which meals to show:
-        *   **General**: Use `plan.meals`.
-        *   **Daily**: Access `plan.dailyMeals[selectedDay].meals`.
-    *   Map these meals to the Accordion UI.
-    *   *Note*: The schema structure for a meal includes `categories` (carbs, protein, etc.). Map these strictly to the existing UI structure (`renderCategory`).
+**Props Changes**:
+*   ❌ Remove: `diet` object prop.
+*   ✅ Add: `dietId: Id<"dietPlans">`.
 
 ---
 
-## 4. Execution Rules
+## 4. UI & State Management
 
-1.  **Schema Alignment**: The schema defines `categories` inside meals as having `options` (array of objects). The UI expects `items` (array of strings). You must **map** `options.text` to the UI's expected string format.
-2.  **Flexible UI**: The "Day Selector" must look professional and match the app's theme (`colors.primary`, `horizontalScale`).
-3.  **Zero Mock Data**: Remove `DIET_DETAILS` and `MEALS` constants.
+**Local State**:
+1.  `selectedDay`: `keyof dailyMeals | null`
+    *   Used only when `format === 'daily'`.
+    *   **Default**: Prefer current weekday if present. Otherwise fallback to `'saturday'`.
+2.  `expandedMeal`: `string | null`
+    *   Used for accordion expand/collapse.
 
-## 5. Deliverables
+---
 
-- `convex/plans.ts` (getDietDetails)
-- `src/features/meals/hooks/useDietDetails.ts`
-- `src/features/meals/components/DietDetailsView.tsx` (Refactored)
+## 5. Rendering Logic (Strict)
+
+### 1. Header / Summary Section
+Populate from Convex data:
+*   `plan.name`
+*   `plan.description`
+*   `plan.targetCalories`
+*   `plan.tags`
+*   *No hardcoded labels or values.*
+
+### 2. Day Selector (Conditional)
+Render only if `plan.format === 'daily'`.
+
+**UI requirements**:
+*   Horizontal scrollable list.
+*   Days: Saturday → Friday.
+*   Highlight `selectedDay`.
+*   Styled consistently with app theme (`colors.primary`, `horizontalScale`).
+*   No logic duplication in render.
+
+### 3. Meals Resolution Logic
+Determine which meals array to render:
+
+**General Format**:
+```typescript
+const meals = plan.meals
+```
+
+**Daily Format**:
+```typescript
+const meals = plan.dailyMeals[selectedDay]?.meals
+```
+
+*   If no meals exist for the selected day: Render a clean empty state. Do not crash.
+
+### 4. Meal Mapping (Critical Schema Rule)
+**Schema structure**:
+```typescript
+meal.categories[].options[] = {
+  id,
+  text,
+  textEn
+}
+```
+
+**UI expectation**:
+`items: string[]`
+
+**✅ You MUST explicitly map**:
+```typescript
+options.map(option => option.text)
+```
+
+**Do NOT**:
+*   Pass raw objects to the UI.
+*   Assume items already exist.
+*   Change UI component contracts.
+
+---
+
+## 6. Execution Rules (Non-Negotiable)
+
+*   Zero mock data.
+*   Delete `DIET_DETAILS`.
+*   Delete `MEALS`.
+*   Strict schema alignment.
+*   No UI redesign.
+*   No client-side guessing.
+*   Graceful loading & error states.
+*   Accordion behavior must remain unchanged.
+
+## 7. Deliverables
+
+1.  `convex/plans.ts` → `getDietDetails`
+2.  `src/features/meals/hooks/useDietDetails.ts`
+3.  Refactored `DietDetailsView.tsx`
+
+**Final Expectation**:
+After refactor:
+*   Diet details reflect real backend data.
+*   Both General & Daily diets work flawlessly.
+*   The component is reusable, stable, and future-proof.
+*   The UI feels unchanged—but the architecture is professional.
 
 **Tone**:
-Flexible. Robust. Detail-oriented.
+Precise. Robust. Schema-faithful. Production-ready.
