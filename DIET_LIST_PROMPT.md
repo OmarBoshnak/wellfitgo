@@ -2,48 +2,93 @@
 
 **Context:**
 You are refactoring the `CalorieRangesList` component (`src/features/meals/components/CalorieRangesList.tsx`).
-Currently, this component displays a hardcoded list of "Calorie Ranges".
-However, the database (`dietPlans` table) actually contains **distinct named plans** for each category (e.g., "Low Carb Diet 1", "Classic Diet 1400", etc.), as verified by database screenshots.
+Currently, this component displays a hardcoded list of artificial “Calorie Ranges”.
+However, the database (`dietPlans` table in `convex/schema.ts`) contains real, named diet plans (e.g. “Classic Diet 1400”, “Low Carb Diet 1”, etc.).
+These plans already encode calorie intent and structure and must be treated as the single source of truth.
+The UI must reflect exactly what exists in the database, without inventing abstractions.
 
 **Files of Interest:**
-- UI: `src/features/meals/components/CalorieRangesList.tsx` (Target for refactor)
-- Schema: `convex/schema.ts` (`dietPlans`)
+- UI (to refactor): `src/features/meals/components/CalorieRangesList.tsx`
+- Schema (source of truth): `convex/schema.ts` → `dietPlans`
+- Backend logic: `convex/plans.ts`
 
 ---
 
 ## 1. The Mission
 
-Refactor this component to display the **actual list of diet plans** from the database for a selected category, rather than artificial "ranges".
+Refactor the component to display the actual list of diet plans for a selected category (type), instead of fake calorie ranges.
 
-1.  **Rename**: Change the component name from `CalorieRangesList` to `DietPlansList` to reflect reality.
-2.  **Fetch**: Query the `dietPlans` table for all active plans matching the selected `type`.
-3.  **Display**: List each plan's `name`, `nameAr`, and `targetCalories`.
+### Required Changes
+
+1.  **Rename the Component**:
+    *   `CalorieRangesList` → `DietPlansList`
+    *   Rename both the file and the component export.
+2.  **Data Source**:
+    *   Fetch diet plans from the `dietPlans` table.
+    *   Only include plans where `isActive === true`.
+3.  **Filtering**:
+    *   Filter by the selected diet type (coming from the previous category selection).
+4.  **Display**:
+    *   Render each individual plan as its own list item/card.
+    *   Do not group or transform plans into ranges.
 
 ---
 
 ## 2. Backend Implementation (Convex)
 
-Update `convex/plans.ts`.
+Update or create `convex/plans.ts`.
 
 ### Query: `getDietsByType`
-- **Arguments**: `{ type: string }`
-- **Logic**:
-  1. Query `dietPlans` using the `by_type_active` index.
-  2. Filter where `type` matches the argument and `isActive === true`.
-  3. Sort results (e.g., by `targetCalories` ascending, or `sortOrder` if available).
-- **Return Shape**:
-  ```typescript
-  {
-    id: string;
-    name: string;        // e.g. "Low Carb Diet 1"
-    nameAr?: string;     // e.g. "دايت لو كارب 1"
-    description?: string;
-    targetCalories?: number; // e.g. 1500
-    emoji?: string;
-    mealsCount: number;  // Length of 'meals' array or 'dailyMeals' keys
-    usageCount: number;
-  }[]
-  ```
+
+**Arguments**:
+The `type` argument must exactly match the schema union. Do NOT accept arbitrary strings.
+```typescript
+{
+  type:
+    | "keto"
+    | "weekly"
+    | "classic"
+    | "low_carb"
+    | "high_protein"
+    | "intermittent_fasting"
+    | "vegetarian"
+    | "maintenance"
+    | "muscle_gain"
+    | "medical"
+    | "custom";
+}
+```
+
+**Query Logic**:
+1.  Use the `by_type_active` index on `dietPlans`.
+2.  Filter where:
+    *   `type === args.type`
+    *   `isActive === true`
+3.  Sort results deterministically using this priority:
+    1.  `sortOrder` (ascending) — if present
+    2.  `targetCalories` (ascending) — if present
+    3.  `createdAt` (ascending) — fallback
+
+**Derived Fields**:
+Compute `mealsCount` using explicit rules:
+*   If `format === "general"`: `mealsCount = meals.length`
+*   If `format === "daily"`: `mealsCount = sum of all day.meals.length across the week`
+*   If meals data is missing: `mealsCount = 0`
+
+**Return Shape**:
+```typescript
+{
+  id: string;
+  name: string;
+  nameAr?: string;
+  description?: string;
+  targetCalories?: number;
+  emoji?: string;
+  mealsCount: number;
+  usageCount: number;
+}[]
+```
+*Constraint*: Do NOT invent fields that do not exist in the schema.
 
 ---
 
@@ -51,31 +96,70 @@ Update `convex/plans.ts`.
 
 ### A. Hook
 Create `src/features/meals/hooks/useDietsByType.ts`.
-- Wrapper for `useQuery(api.plans.getDietsByType, { type: category.id })`.
 
-### B. Component Refactor (`DietPlansList.tsx`)
-- **Rename File**: `CalorieRangesList.tsx` -> `DietPlansList.tsx`.
-- **Props**: Update to receive the `category` object (from the previous grid selection).
-- **Render Logic**:
-  - Iterate over the fetched plans.
-  - **Title**: Display `plan.name` (and `plan.nameAr` as subtitle/secondary).
-  - **Badge**: Display `plan.targetCalories` with a fire emoji (e.g., "🔥 1500 kcal").
-    - *Fallback*: If `targetCalories` is missing, hide the badge.
-  - **Meta**: Display "Meals: X" based on the `mealsCount` returned.
+**Responsibilities**:
+*   Wrap `useQuery(api.plans.getDietsByType, { type })`
+*   Return:
+    ```typescript
+    {
+      diets: DietPlan[];
+      isLoading: boolean;
+      error?: Error;
+    }
+    ```
+*   Use strict TypeScript typing aligned with the backend return shape.
+
+### B. Component Refactor
+Rename `CalorieRangesList.tsx` → `DietPlansList.tsx`.
+
+**Props**:
+Receive the selected category object (containing `id` = diet type).
+
+**Rendering Rules**:
+For each diet plan:
+*   **Title**:
+    *   Primary: `plan.name`
+    *   Secondary (optional): `plan.nameAr`
+*   **Calories Badge**:
+    *   Display only if `targetCalories` exists.
+    *   Example: "🔥 1500 kcal"
+*   **Meta Information**:
+    *   Display: "Meals: X" using `mealsCount`.
+*   **Emoji**:
+    *   Use `plan.emoji` if present.
+    *   Otherwise, fall back to a neutral default emoji.
 
 ---
 
-## 4. Execution Rules
+## 4. UX & State Handling Rules
 
-1.  **Accuracy**: The UI must match the database reality shown in the screenshot. E.g., if the DB says "Classic Diet 1400", display exactly that. Do not try to parse it into a range "1300-1400" unless that logic exists on the backend.
-2.  **Zero Mock Data**: Remove `CALORIE_RANGES` constant.
-3.  **Preserve Styling**: Keep the existing Card layout (Header, Banner, List), but adapt the *content* of the cards to match the new data structure.
+1.  **Loading State**:
+    *   Render existing skeleton/placeholder UI (do not invent new loaders).
+2.  **Empty State**:
+    *   If no active plans exist for the selected category:
+    *   Show a clear empty message (e.g. “No plans available yet”).
+    *   Preserve layout spacing and typography.
+3.  **Styling**:
+    *   Preserve the existing Card/List layout.
+    *   Only change content, not structure, unless required.
 
-## 5. Deliverables
+---
 
-- `convex/plans.ts` (with `getDietsByType`)
-- `src/features/meals/hooks/useDietsByType.ts`
-- `src/features/meals/components/DietPlansList.tsx` (Renamed & Refactored)
+## 5. Execution Rules (Strict)
+
+*   Zero mock data.
+*   Zero client-side aggregation.
+*   No artificial “ranges”.
+*   No schema violations.
+*   UI must be a pure render of backend data.
+*   Deterministic sorting.
+*   Type-safe from Convex → Hook → Component.
+
+## 6. Deliverables
+
+1.  `convex/plans.ts` (getDietsByType query)
+2.  `src/features/meals/hooks/useDietsByType.ts`
+3.  `src/features/meals/components/DietPlansList.tsx` (Renamed and fully refactored)
 
 **Tone**:
-Precise. Data-driven.
+Precise. Deterministic. Schema-driven. Production-ready.
