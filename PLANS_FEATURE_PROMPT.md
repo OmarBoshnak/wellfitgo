@@ -1,79 +1,115 @@
 # Role: Senior Frontend Engineer (React Native + Convex)
 
-**Context:**
-You are working on the **Doctor's Plan Dashboard** (`app/(app)/doctor/(tabs)/plans.tsx`) for the WellFitGo app.
-Currently, this screen uses **hardcoded mock data** and is completely disconnected from the backend.
-The goal is to make this screen **fully functional, interactive, and intelligent** by connecting it to the Convex backend.
+Context:
+You are working on the Doctor's Plan Dashboard (`app/(app)/doctor/(tabs)/plans.tsx`) for the WellFitGo app.
+This screen currently uses hardcoded mock data and is disconnected from the Convex backend.
+The goal is to make this screen fully functional, interactive, and intelligent.
 
-**Files of Interest:**
+IMPORTANT:
+Before implementing anything:
+- Read the existing `plans.tsx` UI carefully.
+- Preserve layout, styling, and UX unless explicitly required to change.
+- Read `convex/schema.ts` fully.
+- Do NOT invent schema fields or relationships. If something is missing, explain instead of guessing.
+
+Files of Interest:
 - UI: `app/(app)/doctor/(tabs)/plans.tsx`
-- Schema: `convex/schema.ts` (specifically `weeklyMealPlans`, `dietPlans`, `users`, `mealCompletions`)
-- Feature Folder: `src/features/meals/` (You should place new hooks/components here)
+- Schema: `convex/schema.ts` (`weeklyMealPlans`, `dietPlans`, `users`, `mealCompletions`)
+- Feature Folder: `src/features/meals/`
 
 ---
 
 ## 1. The Mission
 
-Refactor `plans.tsx` to replacing all mock data with real-time data from Convex. Implement "Intelligent" features like smart plan suggestions and progress tracking.
-
-### A. Data Connections (Queries)
-Create a new file `convex/doctorPlans.ts` (or similar) to handle these queries:
-1.  **`getActivePlans`**: Fetch all `weeklyMealPlans` where `coachId` is the current user and `status` is 'active'.
-    *   *Join* with `users` to get Client Name and Avatar.
-    *   *Join* with `dietPlans` (if applicable) to get the Program Name.
-    *   *Calculate Progress*: Count related `mealCompletions` for the current week vs total scheduled meals.
-2.  **`getDraftPlans`**: Fetch `weeklyMealPlans` where `status` is 'draft'.
-3.  **`getDietPrograms`**: Fetch `dietPlans` (templates) available to the doctor.
-
-### B. Intelligent Features
-1.  **Smart "Assign Client" Modal**:
-    *   When the doctor clicks "Assign", show a list of clients *without* active plans first.
-    *   **Intelligence**: If a client has the goal "weight_loss", highlight plans tagged `weight_loss` or `keto` as "Recommended".
-2.  **Real-Time Status Indicators**:
-    *   Calculate `status` dynamically:
-        *   **Good**: >80% meal adherence this week.
-        *   **Warning**: <50% meal adherence.
-        *   **Paused**: Plan status is 'paused'.
-
-### C. Mutations (Actions)
-1.  **`assignPlan`**: Create a new `weeklyMealPlans` entry based on a `dietPlan` template.
-2.  **`pausePlan` / `resumePlan`**: Toggle the status of a plan.
-3.  **`archivePlan`**: Move a plan to 'archived'.
+Refactor `plans.tsx` by replacing all mock data with real-time Convex data.
+Implement rule-based intelligent features such as smart suggestions and progress tracking.
 
 ---
 
-## 2. Implementation Steps
+## 2. Data Connections (Convex Queries)
 
-### Step 1: Backend (Convex)
 Create `convex/doctorPlans.ts`.
-- Implement `getActivePlans`: careful with the joins. You might need to fetch plans first, then `Promise.all` to fetch user details.
-- Implement `getDietPrograms`.
-- Implement `assignPlan` mutation.
 
-### Step 2: Frontend Hooks
-Create `src/features/meals/hooks/useDoctorPlans.ts`.
-- Wrap the Convex queries.
-- Return structured data matching the UI needs (mapped from the backend format).
+Note:
+- Convex does NOT support native joins.
+- Perform joins manually inside Convex functions (not in the client).
+- Avoid N+1 queries from the frontend.
 
-### Step 3: UI Refactor (`plans.tsx`)
-- Replace `mockActivePlans` with `useDoctorPlans()`.
-- Replace `mockDraftPlans` with real drafts.
-- **Loading States**: Add `ActivityIndicator` or Skeleton loaders while fetching.
-- **Empty States**: Ensure the "No Active Plans" UI shows correctly when data is empty.
+### Queries
+
+1. getActivePlans
+- Fetch `weeklyMealPlans` where:
+  - coachId = current user
+  - status = 'active'
+- Manually join:
+  - `users` → client name + avatar
+  - `dietPlans` → program name
+- Calculate weekly progress:
+  - completed meals / total scheduled meals
+
+2. getDraftPlans
+- Fetch `weeklyMealPlans` where status = 'draft'
+
+3. getDietPrograms
+- Fetch all available `dietPlans` templates
 
 ---
 
-## 3. Rules & Guidelines
+## 3. Intelligent Features (Rule-Based)
 
-1.  **Type Safety**: Create a shared type `DoctorPlanItem` that matches the UI's expectation, and map the Convex result to this type in the hook.
-2.  **No Mock Data**: Delete `mockActivePlans` and `mockDraftPlans` entirely.
-3.  **Performance**: Use `Promise.all` in Convex functions to fetch client data efficiently. Do not make N+1 queries from the client.
-4.  **Error Handling**: If a query fails, show a `Toast` or generic error message.
+1. Smart "Assign Client" Modal
+- Show clients without active plans first
+- If client goal = "weight_loss":
+  - Highlight plans tagged `weight_loss` or `keto` as "Recommended"
 
-## 4. Deliverables
-- `convex/doctorPlans.ts` (New API file)
-- `src/features/meals/hooks/useDoctorPlans.ts` (New Hook)
-- `app/(app)/doctor/(tabs)/plans.tsx` (Refactored)
+2. Real-Time Status Indicators
+- Good: >80% adherence
+- Warning: <50% adherence
+- Paused: plan status = 'paused'
 
-**Tone**:
-High-precision coding. No placeholders. "It just works."
+---
+
+## 4. Mutations
+
+- assignPlan: create a `weeklyMealPlans` entry from a `dietPlan`
+- pausePlan / resumePlan
+- archivePlan
+
+---
+
+## 5. Implementation Steps
+
+### Backend
+- Create `convex/doctorPlans.ts`
+- Use `Promise.all` where needed
+- Keep logic server-side
+
+### Frontend
+- Create `src/features/meals/hooks/useDoctorPlans.ts`
+- Map Convex results into UI-friendly structures
+
+### UI
+- Replace mockActivePlans / mockDraftPlans
+- Add loading & empty states
+- Handle errors with Toasts
+
+---
+
+## 6. Rules & Guidelines
+
+- Create a shared type `DoctorPlanItem`
+- No mock data
+- No client-side joins
+- No placeholders
+- High-performance, production-ready code
+
+---
+
+## 7. Deliverables
+
+- `convex/doctorPlans.ts`
+- `useDoctorPlans.ts`
+- Refactored `plans.tsx`
+
+Tone:
+High precision. Production quality. It just works.
