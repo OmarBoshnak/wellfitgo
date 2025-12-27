@@ -1,152 +1,80 @@
 # Role: Senior Frontend Engineer (React Native + Convex)
 
 **Context:**
-You are implementing full functionality for the `EditDietScreen` in a production React Native application.
+You are refining the `EditDietScreen.tsx` component.
+The user wants to make the **granular edit buttons** inside the "Meal Plan Editor" functional.
+Currently, buttons like the Trash icon (delete meal), Pencil icon (edit name), and Plus icon (add food item) are static and do nothing.
 
-**The screen currently renders correctly but:**
-*   The "Save" and "Delete" actions are non-functional placeholders.
-*   The "Meal Editor" relies on mock data instead of real plan data.
-
-Your task is to wire the UI to real Convex mutations, ensure correct data binding, and enforce safe, production-grade UX patterns.
-
-**Files in Scope:**
-*   Frontend:
-    *   `src/features/meals/components/EditDietScreen.tsx`
-    *   `src/features/meals/hooks/usePlanMutations.ts`
-*   Backend:
-    *   `convex/plans.ts`
-    *   `convex/schema.ts` → `dietPlans`
+**Files of Interest:**
+- UI: `src/features/meals/components/EditDietScreen.tsx`
+- Schema: `convex/schema.ts` (`dietPlans` -> nested `meals` structure)
 
 ---
 
-## 1. Mission Objectives
+## 1. The Mission
 
-### A. Delete Action (Soft Delete / Archive)
-Implement a soft delete behavior.
+Make every button inside the Meal Editor functional by manipulating the **local state**.
+The changes will be persisted to Convex only when the main "Save" button is clicked.
 
-**UI Behavior**:
-1.  User taps the Trash icon.
-2.  Show a confirmation dialog (`Alert.alert`).
-3.  If confirmed:
-    *   Call `archiveDietPlan`.
-    *   Show loading state.
-    *   Navigate back on success.
+### Specific Actions to Implement
 
-**Data Rule**: Do NOT delete the document. Mark it as archived.
+1.  **Meal Level**:
+    *   **Trash Icon**: Remove the meal from the local `meals` state. Show a confirmation alert ("Delete Breakfast?").
+    *   **Pencil Icon**: Open a simple modal (or toggle inline edit mode) to rename the meal (e.g., change "Breakfast" to "Late Breakfast").
+    *   **"Add Food Category" Button**: Add a new empty category (e.g., "Snacks") to the meal.
 
-### B. Save / Edit Action
-Make the Save button fully functional.
+2.  **Category Level**:
+    *   **Pencil Icon**: Rename the category (e.g., change "Carbs" to "Slow Carbs").
+    *   **"Add Food Item" Button**:
+        *   Show a small input modal or inline text input.
+        *   Add a new food item string/object to the category's `items` array.
 
-**Behavior**:
-1.  Collect all editable fields:
-    *   Name
-    *   Description
-    *   Calories / calorie range
-    *   Meal configuration (meals, categories, structure)
-2.  On Save:
-    *   Call `updateDietPlan`.
-    *   Show loading indicator.
-    *   Disable Save/Delete while loading.
-    *   Show success toast on completion.
-
-### C. Data Binding (Critical)
-*   **Remove all mock data.**
-*   Replace `MOCK_MEALS`.
-*   **Initialize local state from**: `diet.meals` OR `diet.dailyMeals` (based on schema).
-*   The Meal Plan Editor must reflect real persisted structure.
-*   All edits should be local state only until Save is pressed.
+3.  **Food Item Level**:
+    *   **X Icon**: Remove the food item from the category.
 
 ---
 
-## 2. Backend Implementation (Convex)
+## 2. State Management Strategy
 
-### Mutation: `archiveDietPlan`
-File: `convex/plans.ts`
+Since `dietPlans` stores meals as a nested JSON structure (or related table), you must manage a deep local state.
 
-```typescript
-archiveDietPlan({
-  id: Id<"dietPlans">
-})
-```
-
-**Logic**:
-*   Patch the document:
-    *   `status: "archived"`
-    *   `isActive: false`
-*   No deletes. No cascading effects.
-
-### Mutation: `updateDietPlan`
-```typescript
-updateDietPlan({
-  id: Id<"dietPlans">,
-  updates: Partial<DietPlan>,
-  meals?: Meal[]
-})
-```
-
-**Logic**:
-*   Patch top-level fields: name, description, calories, status (if applicable).
-*   If `meals` are provided: Update the diet plan’s stored meal structure.
-*   **Note**: Assume meals are stored inside `dietPlans` for this task. If your schema supports external meal tables, handle mapping server-side.
-
-**Rules**:
-*   Validation lives in Convex, not the UI.
-*   Enforce schema enums only.
+1.  **Initialization**:
+    *   `const [localMeals, setLocalMeals] = useState<Meal[]>(diet.meals || []);`
+2.  **Helper Functions**:
+    *   Create robust helper functions to avoid deep nesting bugs:
+        *   `addFoodItem(mealId, categoryId, itemText)`
+        *   `removeFoodItem(mealId, categoryId, itemId)`
+        *   `deleteMeal(mealId)`
+        *   `updateMealName(mealId, newName)`
+3.  **Schema Compliance**:
+    *   Ensure every new item/category generated has a unique temporary ID (e.g., `Date.now().toString()`) if the schema requires IDs.
+    *   Ensure the structure matches `Meal -> Category -> Item`.
 
 ---
 
-## 3. Frontend Implementation
+## 3. Convex Integration
 
-### A. Hook Update
-File: `usePlanMutations.ts`
-
-Expose:
-*   `updateDietPlan`
-*   `archiveDietPlan`
-
-Each mutation must provide:
-*   `isLoading`
-*   `onSuccess`
-*   `onError`
-
-### B. `EditDietScreen` Refactor
-
-**1. Delete (Archive)**
-*   Wire Trash icon.
-*   Show confirmation alert.
-*   Call `archiveDietPlan(diet._id)`.
-*   Navigate back on success.
-
-**2. Save**
-*   Wire Save button.
-*   Gather all local state (plan fields, meals editor state).
-*   Call `updateDietPlan`.
-*   Disable buttons while saving.
-*   Show success feedback.
-
-**3. Meal Editor State**
-*   Initialize state from `props.diet`.
-*   Allow adding/removing meals and editing categories.
-*   **Do NOT persist until Save is pressed.**
-*   Pass updated meals structure to backend on save.
+*   The "Save" button (top right) is already wired to `updateDietPlan`.
+*   **Your Task**: Ensure that when `updateDietPlan` is called, it sends the **updated `localMeals` array** as part of the payload.
+*   *Note*: The backend mutation `updateDietPlan` must be capable of accepting a full `meals` array replacement.
 
 ---
 
-## 4. Execution Rules (Strict)
+## 4. Frontend Implementation Steps
 
-*   **Soft delete only** — never remove records.
-*   **Type safety mandatory**: Use `Id<"dietPlans">`.
-*   **UX Requirements**:
-    *   Show `ActivityIndicator` during save/delete.
-    *   Disable Save/Delete during loading.
-    *   No silent failures.
+1.  **Create State**: Replace `MOCK_MEALS` with `localMeals` state initialized from props.
+2.  **Implement Handlers**: Write the add/remove/edit functions.
+3.  **Wire Buttons**: Connect the `TouchableOpacity` elements to these handlers.
+4.  **UI Feedback**:
+    *   When an item is deleted, animate it out (LayoutAnimation) or just remove it instantly.
+    *   When adding an item, ensure the list scrolls to show it.
 
 ## 5. Deliverables
 
-You must produce:
-1.  `convex/plans.ts` (archiveDietPlan, Updated updateDietPlan)
-2.  `usePlanMutations.ts` (Includes archive mutation)
-3.  `EditDietScreen.tsx` (Fully functional, No mock data, Real Convex integration)
+- `src/features/meals/components/EditDietScreen.tsx`
+    - Fully functional granular buttons.
+    - No more `MOCK_MEALS`.
+    - Local state manipulation logic.
 
-**Quality Bar**:
-Production-grade. Type-safe. No mock data. No hardcoded logic. Clear state → backend lifecycle separation.
+**Tone**:
+Interactive. Detailed. State-aware.
