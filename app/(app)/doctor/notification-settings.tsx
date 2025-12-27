@@ -14,8 +14,8 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 // =============================================================================
 // TRANSLATIONS

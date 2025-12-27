@@ -1,4 +1,4 @@
-import { isRTL } from '@/src/i18n';
+import { isRTL } from '@/src/core/i18n';
 
 // Day View translations
 export const dayViewTranslations = {

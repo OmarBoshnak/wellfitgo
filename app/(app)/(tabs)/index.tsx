@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { colors, gradients, shadows } from '@/src/constants/Themes';
-import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/utils/scaling';
+import { colors, gradients, shadows } from '@/src/core/constants/Themes';
+import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/core/utils/scaling';
 import { useAppSelector } from '@/src/store/hooks';
 import {
     selectCurrentWeight,
@@ -25,9 +25,9 @@ import {
 } from '@/src/store/userSlice';
 import { selectMeals } from '@/src/store/mealsSlice';
 import { selectWaterIntake, selectWaterGoal } from '@/src/store/waterSlice';
-import { homeTranslations, isRTL } from '@/src/constants/translations';
-import { WeightCheckin } from '@/src/component/WeightCheckin';
-import { WaterTracker } from '@/src/component/WaterTracker';
+import { homeTranslations, isRTL } from '@/src/core/constants/translations';
+import { WeightCheckin } from '@/src/features/tracking/components/WeightCheckin';
+import { WaterTracker } from '@/src/features/tracking/components/WaterTracker';
 import { useState } from 'react';
 
 const { width } = Dimensions.get('window');

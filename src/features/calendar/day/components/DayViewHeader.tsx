@@ -3,11 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-nativ
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Calendar } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { dayViewTranslations as t, getDayNameFromIndex, getMonthName, getDayLetterFromIndex } from '../translations';
 import { getWeekStripDays } from '../utils/time';
-import { colors } from '@/src/theme';
+import { colors } from '@/src/core/theme';
 
 interface DayViewHeaderProps {
     currentDate: Date;

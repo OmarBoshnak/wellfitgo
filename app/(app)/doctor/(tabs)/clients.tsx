@@ -25,16 +25,16 @@ import {
     UserPlus,
     UserX,
 } from 'lucide-react-native';
-import { colors, gradients } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/utils/scaling';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/core/utils/scaling';
 import {
     useClients,
     formatLastCheckIn,
     type Client,
     type ClientStatus,
     type ClientFilter,
-} from '@/src/hooks/useClients';
+} from '@/src/features/doctor/hooks/useClients';
 import { Id } from '@/convex/_generated/dataModel';
 
 // ============ TRANSLATIONS ============

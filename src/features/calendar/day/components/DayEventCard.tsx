@@ -2,9 +2,9 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Video, Building2, Phone, Clock, ArrowRight, MoreVertical } from 'lucide-react-native';
-import { colors } from '@/src/theme';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/theme';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { dayViewTranslations as t, formatHour } from '../translations';
 import { DayEvent } from '../types';
 

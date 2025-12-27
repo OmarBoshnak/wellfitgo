@@ -9,12 +9,14 @@ import {
     TextInput,
     Switch,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { X, Check, ImagePlus, Settings2 } from 'lucide-react-native';
-import { colors, gradients } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { usePlanMutations } from '../hooks/usePlanMutations';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,6 +34,8 @@ const t = {
     configureCustom: isRTL ? 'تكوين نطاقات مخصصة بدلاً من ذلك' : 'Configure custom ranges instead',
     cancel: isRTL ? 'إلغاء' : 'Cancel',
     createCategoryBtn: isRTL ? 'إنشاء الفئة' : 'Create Category',
+    creating: isRTL ? 'جاري الإنشاء...' : 'Creating...',
+    error: isRTL ? 'حدث خطأ' : 'Error occurred',
 };
 
 const ICON_OPTIONS = ['🥗', '🥩', '🥑', '🧈', '🥬', '🏥', '⏰', '🩺', '🍳', '🥜', '🍎', '🥛'];
@@ -39,31 +43,19 @@ const ICON_OPTIONS = ['🥗', '🥩', '🥑', '🧈', '🥬', '🏥', '⏰', '�
 interface Props {
     visible: boolean;
     onClose: () => void;
-    onCreate: (category: {
-        emoji: string;
-        nameEn: string;
-        nameAr: string;
-        description: string;
-        autoGenerateRanges: boolean;
-    }) => void;
+    onSuccess?: () => void; // Called after successful creation
 }
 
-export default function CreateCategoryModal({ visible, onClose, onCreate }: Props) {
+export default function CreateCategoryModal({ visible, onClose, onSuccess }: Props) {
     const [selectedEmoji, setSelectedEmoji] = useState('🥗');
     const [nameEn, setNameEn] = useState('');
     const [nameAr, setNameAr] = useState('');
     const [description, setDescription] = useState('');
     const [autoGenerateRanges, setAutoGenerateRanges] = useState(true);
 
-    const handleCreate = () => {
-        onCreate({
-            emoji: selectedEmoji,
-            nameEn,
-            nameAr,
-            description,
-            autoGenerateRanges,
-        });
-        // Reset form
+    const { createDietPlan, isLoading, error } = usePlanMutations();
+
+    const resetForm = () => {
         setSelectedEmoji('🥗');
         setNameEn('');
         setNameAr('');
@@ -71,10 +63,34 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
         setAutoGenerateRanges(true);
     };
 
-    const isFormValid = nameEn.trim().length > 0;
+    const handleCreate = async () => {
+        try {
+            await createDietPlan({
+                name: nameEn.trim(),
+                nameAr: nameAr.trim() || undefined,
+                emoji: selectedEmoji,
+                description: description.trim() || undefined,
+                type: 'custom', // New categories default to custom type
+            });
+
+            resetForm();
+            onSuccess?.();
+            onClose();
+        } catch (err) {
+            // Error is already captured by usePlanMutations hook
+            console.error('Failed to create category:', err);
+        }
+    };
+
+    const handleClose = () => {
+        resetForm();
+        onClose();
+    };
+
+    const isFormValid = nameEn.trim().length > 0 && !isLoading;
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
             <View style={styles.overlay}>
                 <View style={styles.modal}>
                     {/* Drag Handle */}
@@ -85,10 +101,17 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
                     {/* Header */}
                     <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         <Text style={styles.headerTitle}>{t.createCategory}</Text>
-                        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                        <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                             <X size={horizontalScale(24)} color={colors.textSecondary} />
                         </TouchableOpacity>
                     </View>
+
+                    {/* Error Message */}
+                    {error && (
+                        <View style={styles.errorBanner}>
+                            <Text style={styles.errorText}>{t.error}: {error.message}</Text>
+                        </View>
+                    )}
 
                     {/* Scrollable Content */}
                     <ScrollView
@@ -136,6 +159,7 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
                                     placeholderTextColor={colors.textSecondary}
                                     value={nameEn}
                                     onChangeText={setNameEn}
+                                    editable={!isLoading}
                                 />
                             </View>
 
@@ -150,6 +174,7 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
                                     placeholderTextColor={colors.textSecondary}
                                     value={nameAr}
                                     onChangeText={setNameAr}
+                                    editable={!isLoading}
                                 />
                             </View>
 
@@ -167,6 +192,7 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
                                     multiline
                                     numberOfLines={3}
                                     textAlignVertical="top"
+                                    editable={!isLoading}
                                 />
                             </View>
                         </View>
@@ -188,6 +214,7 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
                                     trackColor={{ false: '#E2E8F0', true: colors.primaryDark }}
                                     thumbColor="#FFFFFF"
                                     ios_backgroundColor="#E2E8F0"
+                                    disabled={isLoading}
                                 />
                             </View>
 
@@ -204,7 +231,7 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
 
                     {/* Footer */}
                     <View style={[styles.footer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                        <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+                        <TouchableOpacity style={styles.cancelButton} onPress={handleClose} disabled={isLoading}>
                             <Text style={styles.cancelButtonText}>{t.cancel}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -219,13 +246,22 @@ export default function CreateCategoryModal({ visible, onClose, onCreate }: Prop
                                 end={{ x: 1, y: 0 }}
                                 style={styles.createButton}
                             >
-                                <Text style={[
-                                    styles.createButtonText,
-                                    !isFormValid && styles.createButtonTextDisabled
-                                ]}>
-                                    {t.createCategoryBtn}
-                                </Text>
-                                <Check size={horizontalScale(20)} color={isFormValid ? '#FFFFFF' : colors.textSecondary} />
+                                {isLoading ? (
+                                    <>
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                        <Text style={styles.createButtonText}>{t.creating}</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Text style={[
+                                            styles.createButtonText,
+                                            !isFormValid && styles.createButtonTextDisabled
+                                        ]}>
+                                            {t.createCategoryBtn}
+                                        </Text>
+                                        <Check size={horizontalScale(20)} color={isFormValid ? '#FFFFFF' : colors.textSecondary} />
+                                    </>
+                                )}
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -283,6 +319,17 @@ const styles = StyleSheet.create({
         padding: horizontalScale(8),
         marginRight: horizontalScale(-8),
         borderRadius: horizontalScale(20),
+    },
+    // Error Banner
+    errorBanner: {
+        backgroundColor: '#FEE2E2',
+        paddingHorizontal: horizontalScale(20),
+        paddingVertical: verticalScale(12),
+    },
+    errorText: {
+        fontSize: ScaleFontSize(14),
+        color: '#DC2626',
+        textAlign: 'center',
     },
     // Content
     content: {

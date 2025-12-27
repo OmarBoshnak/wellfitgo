@@ -3,9 +3,9 @@ import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-nativ
 import { ArrowLeft, Plus } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/src/theme';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/theme';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { calendarTranslations as t } from '../translations';
 
 interface CalendarHeaderProps {

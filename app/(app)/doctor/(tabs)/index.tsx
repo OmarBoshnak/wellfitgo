@@ -11,19 +11,19 @@ import {
     MessageSquare,
     FileText,
 } from 'lucide-react-native';
-import { colors } from '@/src/theme';
-import { DoctorHeader } from '@/src/features/clients';
+import { colors } from '@/src/core/theme';
+import { DoctorHeader } from '@/src/features/doctor/components/HomeScreen';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { doctorTranslations as t } from '@/src/i18n';
-import { horizontalScale, verticalScale } from '@/src/utils/scaling';
+import { doctorTranslations as t } from '@/src/core/i18n';
+import { horizontalScale, verticalScale } from '@/src/core/utils/scaling';
 import { useCoachInbox } from '@/src/features/messaging/hooks/useMessaging';
-import { useClientsNeedingAttention } from '@/src/hooks/useClientsNeedingAttention';
-import { useTodaysAppointments } from '@/src/hooks/useTodaysAppointments';
-import { usePhoneCall } from '@/src/hooks/usePhoneCall';
-import { useWeeklyActivity } from '@/src/hooks/useWeeklyActivity';
-import { useRecentActivity } from '@/src/hooks/useRecentActivity';
+import { useClientsNeedingAttention } from '@/src/features/doctor/hooks/useClientsNeedingAttention';
+import { useTodaysAppointments } from '@/src/features/doctor/hooks/useTodaysAppointments';
+import { usePhoneCall } from '@/src/features/doctor/hooks/usePhoneCall';
+import { useWeeklyActivity } from '@/src/features/doctor/hooks/useWeeklyActivity';
+import { useRecentActivity } from '@/src/features/doctor/hooks/useRecentActivity';
 
 // Extracted Components
 import {
@@ -35,7 +35,7 @@ import {
     NotificationPanel,
     type Appointment,
     type Activity,
-} from '@/src/component/doctor/HomeScreen';
+} from '@/src/features/doctor/components/HomeScreen';
 
 
 

@@ -11,8 +11,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors } from '@/src/theme';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/theme';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import {
     MessageItem,
     FilterChips,

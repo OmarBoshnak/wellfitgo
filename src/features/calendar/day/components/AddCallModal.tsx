@@ -19,8 +19,8 @@ import { X, Search, Calendar, Clock, Phone, ChevronDown, Check } from 'lucide-re
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale } from '@/src/core/utils/scaling';
 import { dayViewTranslations as t, getMonthName, getDayNameFromIndex } from '../translations';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');

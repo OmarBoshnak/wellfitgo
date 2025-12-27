@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { colors } from '@/src/theme';
+import { colors } from '@/src/core/theme';
 import { CalendarEvent, CalendarView } from './types';
 import { useCalendar } from './hooks/useCalendar';
 import CalendarHeader from './components/CalendarHeader';

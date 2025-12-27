@@ -5,8 +5,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
-import { isRTL } from '@/src/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { isRTL } from '@/src/core/constants/translations';
 import { mealPlanColors, calorieConfig, borderRadius } from '../constants';
 import { t } from '../translations';
 

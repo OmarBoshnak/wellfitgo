@@ -1,5 +1,5 @@
 import { ClerkProvider, ClerkLoaded, useAuth } from '@clerk/clerk-expo';
-import { tokenCache } from '@/src/utils/cache';
+import { tokenCache } from '@/src/core/utils/cache';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';

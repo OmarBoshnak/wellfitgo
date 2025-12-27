@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { horizontalScale } from '@/src/utils/scaling';
+import { horizontalScale } from '@/src/core/utils/scaling';
 import { mealPlanColors } from '../constants';
 
 interface ProgressStepsProps {

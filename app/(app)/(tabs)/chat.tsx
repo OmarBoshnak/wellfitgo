@@ -15,9 +15,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, shadows } from '@/src/constants/Themes';
-import { ScaleFontSize, horizontalScale, verticalScale } from '@/src/utils/scaling';
-import { isRTL } from '@/src/constants/translations';
+import { colors, shadows } from '@/src/core/constants/Themes';
+import { ScaleFontSize, horizontalScale, verticalScale } from '@/src/core/utils/scaling';
+import { isRTL } from '@/src/core/constants/translations';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import * as ImagePicker from 'expo-image-picker';

@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients } from '@/src/constants/Themes';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 export type FilterType = 'all' | 'unread' | 'clients' | 'team';
 

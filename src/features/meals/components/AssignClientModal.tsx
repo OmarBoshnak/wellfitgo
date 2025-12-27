@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Image, Dimensions, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Search, Check, ChevronDown, CheckCircle } from 'lucide-react-native';
-import { colors, gradients } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/src/constants/Themes';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/constants/Themes';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 // Lazy import expo-av
 let Audio: any = null;

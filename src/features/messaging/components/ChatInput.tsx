@@ -2,8 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/src/constants/Themes';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/constants/Themes';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import AttachmentSheet, { AttachmentResult } from './AttachmentSheet';
 import MealPlanSelectorSheet, { MealPlan } from './MealPlanSelectorSheet';
 

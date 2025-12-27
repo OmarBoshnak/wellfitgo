@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -6,6 +6,7 @@ import {
     StyleSheet,
     ScrollView,
     TextInput,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -23,13 +24,18 @@ import {
     X,
     LibraryBig,
 } from 'lucide-react-native';
-import { colors, gradients } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDietDetails } from '../hooks/useDietDetails';
+import { usePlanMutations } from '../hooks/usePlanMutations';
+import { Id } from '@/convex/_generated/dataModel';
 
 const t = {
     edit: isRTL ? 'تعديل' : 'Edit',
     save: isRTL ? 'حفظ' : 'Save',
+    saving: isRTL ? 'جاري الحفظ...' : 'Saving...',
     basicInfo: isRTL ? 'المعلومات الأساسية' : 'Basic Info',
     calorieRange: isRTL ? 'نطاق السعرات' : 'Calorie Range',
     goalDescription: isRTL ? 'وصف الهدف' : 'Goal Description',
@@ -41,8 +47,13 @@ const t = {
     addFoodCategory: isRTL ? 'إضافة فئة غذائية' : 'Add Food Category',
     enterGoal: isRTL ? 'أدخل وصف الهدف' : 'Enter goal description',
     enterCalorieRange: isRTL ? 'مثال: 1500-1800' : 'e.g. 1500-1800',
+    loading: isRTL ? 'جاري التحميل...' : 'Loading...',
+    notFound: isRTL ? 'الخطة غير موجودة' : 'Plan not found',
+    planName: isRTL ? 'اسم الخطة' : 'Plan Name',
+    enterPlanName: isRTL ? 'أدخل اسم الخطة' : 'Enter plan name',
 };
 
+// ============ LOCAL INTERFACES FOR UI ============
 interface MealCategory {
     id: string;
     emoji: string;
@@ -60,62 +71,8 @@ interface Meal {
     categories: MealCategory[];
 }
 
-// Mock data matching HTML design
-const MOCK_MEALS: Meal[] = [
-    {
-        id: '1',
-        emoji: '☀️',
-        nameAr: 'الافطار',
-        nameEn: 'Breakfast',
-        optionsCount: 12,
-        categories: [
-            {
-                id: '1-1',
-                emoji: '🍞',
-                nameAr: 'النشويات',
-                nameEn: 'Carbs',
-                items: [
-                    { id: '1-1-1', nameAr: 'نص رغيف خبز اسمر', nameEn: 'Half brown loaf' },
-                    { id: '1-1-2', nameAr: '٢ شريحة توست', nameEn: '2 Toast slices' },
-                ],
-            },
-            {
-                id: '1-2',
-                emoji: '🥚',
-                nameAr: 'البروتين',
-                nameEn: 'Protein',
-                items: [
-                    { id: '1-2-1', nameAr: '٢ بيضة مسلوقة', nameEn: '2 Boiled Eggs' },
-                ],
-            },
-        ],
-    },
-    {
-        id: '2',
-        emoji: '🥗',
-        nameAr: 'الغداء',
-        nameEn: 'Lunch',
-        optionsCount: 8,
-        categories: [],
-    },
-    {
-        id: '3',
-        emoji: '🌙',
-        nameAr: 'العشاء',
-        nameEn: 'Dinner',
-        optionsCount: 5,
-        categories: [],
-    },
-];
-
 interface Props {
-    diet: {
-        id: string;
-        range: string;
-        description: string;
-        meals: number;
-        options: number;
-    };
+    dietId: Id<"dietPlans">;
     onBack: () => void;
     onSave?: () => void;
 }
@@ -123,10 +80,10 @@ interface Props {
 // --- Sub-components ---
 
 const FoodItem = ({ item }: { item: { id: string; nameAr: string; nameEn: string } }) => (
-    <View style={[styles.foodItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-        <View style={[styles.foodItemContent, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+    <View style={[styles.foodItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+        <View style={[styles.foodItemContent, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
             <View style={styles.foodItemDot} />
-            <Text style={[styles.foodItemText, { textAlign: isRTL ? 'right' : 'left' }]}>
+            <Text style={[styles.foodItemText, { textAlign: isRTL ? 'left' : 'right' }]}>
                 {item.nameAr} ({item.nameEn})
             </Text>
         </View>
@@ -139,7 +96,7 @@ const FoodItem = ({ item }: { item: { id: string; nameAr: string; nameEn: string
 const CategoryCard = ({ category }: { category: MealCategory }) => (
     <View style={styles.categoryCard}>
         {/* Category Header */}
-        <View style={[styles.categoryHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+        <View style={[styles.categoryHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
             <Text style={styles.categoryTitle}>
                 {category.emoji} {category.nameAr} ({category.nameEn})
             </Text>
@@ -154,7 +111,7 @@ const CategoryCard = ({ category }: { category: MealCategory }) => (
         </View>
 
         {/* Add Food Item Button */}
-        <TouchableOpacity style={[styles.addItemButton, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+        <TouchableOpacity style={[styles.addItemButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
             <Plus size={horizontalScale(18)} color={colors.primaryDark} />
             <Text style={styles.addItemText}>{t.addFoodItem}</Text>
         </TouchableOpacity>
@@ -173,11 +130,11 @@ const MealCard = ({
     <View style={styles.mealCard}>
         {/* Meal Summary Header */}
         <TouchableOpacity
-            style={[styles.mealHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            style={[styles.mealHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
             onPress={onToggle}
             activeOpacity={0.7}
         >
-            <View style={{ alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+            <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
                 <Text style={styles.mealTitle}>
                     {meal.emoji} {meal.nameAr} ({meal.nameEn})
                 </Text>
@@ -185,7 +142,7 @@ const MealCard = ({
                     • {meal.optionsCount} {t.optionsAvailable}
                 </Text>
             </View>
-            <View style={[styles.mealActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.mealActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 <TouchableOpacity style={styles.mealActionButton}>
                     <Pencil size={horizontalScale(20)} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -207,7 +164,7 @@ const MealCard = ({
                 {meal.categories.map(category => <CategoryCard key={category.id} category={category} />)}
 
                 {/* Add Category Button */}
-                <TouchableOpacity style={[styles.addCategoryButton, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <TouchableOpacity style={[styles.addCategoryButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <LibraryBig size={horizontalScale(20)} color={colors.textSecondary} />
                     <Text style={styles.addCategoryText}>{t.addFoodCategory}</Text>
                 </TouchableOpacity>
@@ -216,16 +173,77 @@ const MealCard = ({
     </View>
 );
 
-export default function EditDietScreen({ diet, onBack, onSave }: Props) {
-    const [calorieRange, setCalorieRange] = useState(diet?.range ? `${diet.range} kcal` : '1200 - 1300 kcal');
-    const [goalDescription, setGoalDescription] = useState(diet?.description || 'Stable weight loss');
-    const [mealsPerDay, setMealsPerDay] = useState(diet?.meals || 3);
+// ============ MAIN COMPONENT ============
+export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
+    const { plan, isLoading } = useDietDetails(dietId);
+    const { updateDietPlan, isLoading: isSaving } = usePlanMutations();
+    const insets = useSafeAreaInsets();
+
+    // Form state - initialized from plan data
+    const [name, setName] = useState('');
+    const [targetCalories, setTargetCalories] = useState('');
+    const [description, setDescription] = useState('');
+    const [mealsPerDay, setMealsPerDay] = useState(3);
     const [basicInfoOpen, setBasicInfoOpen] = useState(true);
-    const [expandedMeals, setExpandedMeals] = useState<string[]>(['1']);
+    const [expandedMeals, setExpandedMeals] = useState<string[]>([]);
+
+    // Initialize form state when plan data loads
+    useEffect(() => {
+        if (plan) {
+            setName(plan.name || '');
+            setTargetCalories(plan.targetCalories?.toString() || '');
+            setDescription(plan.description || '');
+            // Count meals from plan data
+            if (plan.format === 'general' && plan.meals) {
+                setMealsPerDay(plan.meals.length);
+                setExpandedMeals(plan.meals.length > 0 ? [plan.meals[0].id] : []);
+            } else if (plan.format === 'daily' && plan.dailyMeals) {
+                // Get meals from first day
+                const firstDay = Object.keys(plan.dailyMeals)[0];
+                const dayMeals = firstDay ? plan.dailyMeals[firstDay as keyof typeof plan.dailyMeals]?.meals : [];
+                setMealsPerDay(dayMeals?.length || 3);
+            }
+        }
+    }, [plan]);
+
+    // Convert plan meals to UI format
+    const mealsForUI: Meal[] = React.useMemo(() => {
+        if (!plan) return [];
+
+        let rawMeals;
+        if (plan.format === 'general') {
+            rawMeals = plan.meals;
+        } else if (plan.format === 'daily') {
+            // Use first day's meals for editing
+            const firstDay = Object.keys(plan.dailyMeals || {})[0];
+            rawMeals = firstDay ? plan.dailyMeals?.[firstDay as keyof typeof plan.dailyMeals]?.meals : [];
+        }
+
+        if (!rawMeals || rawMeals.length === 0) return [];
+
+        return rawMeals.map((meal) => ({
+            id: meal.id,
+            emoji: meal.emoji || '🍽️',
+            nameAr: meal.nameAr || meal.name,
+            nameEn: meal.name,
+            optionsCount: meal.categories.reduce((sum, cat) => sum + cat.options.length, 0),
+            categories: meal.categories.map((cat) => ({
+                id: `${meal.id}-${cat.name}`,
+                emoji: cat.emoji || '📋',
+                nameAr: cat.nameAr || cat.name,
+                nameEn: cat.name,
+                items: cat.options.map((opt, idx) => ({
+                    id: `${meal.id}-${cat.name}-${idx}`,
+                    nameAr: opt.text,
+                    nameEn: opt.text,
+                })),
+            })),
+        }));
+    }, [plan]);
 
     const BackArrow = () => isRTL
-        ? <ArrowRight size={horizontalScale(24)} color={colors.textPrimary} />
-        : <ArrowLeft size={horizontalScale(24)} color={colors.textPrimary} />;
+        ? <ArrowLeft size={horizontalScale(24)} color={colors.textPrimary} />
+        : <ArrowRight size={horizontalScale(24)} color={colors.textPrimary} />;
 
     const toggleMealExpansion = (mealId: string) => {
         setExpandedMeals(prev =>
@@ -236,36 +254,91 @@ export default function EditDietScreen({ diet, onBack, onSave }: Props) {
     };
 
     const handleExpandAll = () => {
-        if (expandedMeals.length === MOCK_MEALS.length) {
+        if (expandedMeals.length === mealsForUI.length) {
             setExpandedMeals([]);
         } else {
-            setExpandedMeals(MOCK_MEALS.map(m => m.id));
+            setExpandedMeals(mealsForUI.map(m => m.id));
         }
     };
 
+    const handleSave = async () => {
+        try {
+            await updateDietPlan({
+                id: dietId,
+                name: name.trim(),
+                description: description.trim() || undefined,
+                targetCalories: targetCalories ? parseInt(targetCalories, 10) : undefined,
+            });
+            onSave?.();
+        } catch (error) {
+            console.error('Failed to save diet:', error);
+        }
+    };
+
+    // ============ LOADING STATE ============
+    if (isLoading) {
+        return (
+            <SafeAreaView edges={['left', 'right']} style={styles.container}>
+                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
+                    <View style={styles.saveButton}>
+                        <Text style={styles.saveButtonText}>{t.save}</Text>
+                    </View>
+                    <Text style={styles.headerTitle}>{t.loading}</Text>
+                    <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                        <BackArrow />
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primaryDark} />
+                    <Text style={styles.loadingText}>{t.loading}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // ============ NOT FOUND STATE ============
+    if (!plan) {
+        return (
+            <SafeAreaView edges={['left', 'right']} style={styles.container}>
+                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
+                    <View style={{ width: horizontalScale(60) }} />
+                    <Text style={styles.headerTitle}>{t.notFound}</Text>
+                    <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                        <BackArrow />
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // ============ MAIN RENDER ============
     return (
-        <View style={styles.container}>
+        <SafeAreaView edges={['left', 'right']} style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <BackArrow />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle} numberOfLines={1}>
-                    {t.edit} {diet?.range || 'Classic 1200-1300'}
-                </Text>
-                <TouchableOpacity onPress={onSave} activeOpacity={0.9}>
+            <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
+                <TouchableOpacity onPress={handleSave} activeOpacity={0.9} disabled={isSaving}>
                     <LinearGradient
-                        colors={gradients.primary}
+                        colors={isSaving ? ['#E1E8EF', '#E1E8EF'] : gradients.primary}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                         style={styles.saveButton}
                     >
-                        <Text style={styles.saveButtonText}>{t.save}</Text>
+                        {isSaving ? (
+                            <ActivityIndicator size="small" color={colors.textSecondary} />
+                        ) : (
+                            <Text style={styles.saveButtonText}>{t.save}</Text>
+                        )}
                     </LinearGradient>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle} numberOfLines={1}>
+                    {t.edit} {plan.name}
+                </Text>
+                <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                    <BackArrow />
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.content} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: horizontalScale(10) }} showsVerticalScrollIndicator={false}>
                 {/* Basic Info Section */}
                 <View style={styles.section}>
                     <TouchableOpacity
@@ -273,7 +346,7 @@ export default function EditDietScreen({ diet, onBack, onSave }: Props) {
                         onPress={() => setBasicInfoOpen(!basicInfoOpen)}
                         activeOpacity={0.7}
                     >
-                        <View style={[styles.sectionHeaderLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={[styles.sectionHeaderLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <View style={styles.sectionIcon}>
                                 <Info size={horizontalScale(20)} color={colors.primaryDark} />
                             </View>
@@ -288,40 +361,55 @@ export default function EditDietScreen({ diet, onBack, onSave }: Props) {
 
                     {basicInfoOpen && (
                         <View style={styles.sectionContent}>
+                            {/* Plan Name Input */}
+                            <View style={styles.inputGroup}>
+                                <Text style={[styles.inputLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
+                                    {t.planName}
+                                </Text>
+                                <TextInput
+                                    style={[styles.inputSimple, { textAlign: isRTL ? 'left' : 'right' }]}
+                                    value={name}
+                                    onChangeText={setName}
+                                    placeholder={t.enterPlanName}
+                                    placeholderTextColor={colors.textSecondary}
+                                />
+                            </View>
+
                             {/* Calorie Range Input */}
                             <View style={styles.inputGroup}>
-                                <Text style={[styles.inputLabel, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                <Text style={[styles.inputLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
                                     {t.calorieRange}
                                 </Text>
                                 <View style={styles.inputContainer}>
                                     <Flame size={horizontalScale(20)} color={colors.textSecondary} style={styles.inputIcon} />
                                     <TextInput
                                         style={[styles.input, { textAlign: isRTL ? 'right' : 'left' }]}
-                                        value={calorieRange}
-                                        onChangeText={setCalorieRange}
+                                        value={targetCalories}
+                                        onChangeText={setTargetCalories}
                                         placeholder={t.enterCalorieRange}
                                         placeholderTextColor={colors.textSecondary}
+                                        keyboardType="numeric"
                                     />
                                 </View>
                             </View>
 
                             {/* Goal Description Input */}
                             <View style={styles.inputGroup}>
-                                <Text style={[styles.inputLabel, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                <Text style={[styles.inputLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
                                     {t.goalDescription}
                                 </Text>
                                 <TextInput
                                     style={[styles.inputSimple, { textAlign: isRTL ? 'right' : 'left' }]}
-                                    value={goalDescription}
-                                    onChangeText={setGoalDescription}
+                                    value={description}
+                                    onChangeText={setDescription}
                                     placeholder={t.enterGoal}
                                     placeholderTextColor={colors.textSecondary}
                                 />
                             </View>
 
                             {/* Meals Per Day Stepper */}
-                            <View style={[styles.stepperRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                <View style={[styles.stepperLabel, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <View style={[styles.stepperRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.stepperLabel, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                     <UtensilsCrossed size={horizontalScale(20)} color={colors.textSecondary} />
                                     <Text style={styles.stepperText}>{t.mealsPerDay}</Text>
                                 </View>
@@ -347,7 +435,7 @@ export default function EditDietScreen({ diet, onBack, onSave }: Props) {
 
                 {/* Meal Plan Editor */}
                 <View style={styles.mealEditorSection}>
-                    <View style={[styles.mealEditorHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.mealEditorHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <Text style={styles.mealEditorTitle}>{t.mealPlanEditor}</Text>
                         <TouchableOpacity onPress={handleExpandAll}>
                             <Text style={styles.expandAllText}>{t.expandAll}</Text>
@@ -356,21 +444,27 @@ export default function EditDietScreen({ diet, onBack, onSave }: Props) {
 
                     {/* Meals */}
                     <View style={styles.mealsList}>
-                        {MOCK_MEALS.map(meal => (
-                            <MealCard
-                                key={meal.id}
-                                meal={meal}
-                                isExpanded={expandedMeals.includes(meal.id)}
-                                onToggle={() => toggleMealExpansion(meal.id)}
-                            />
-                        ))}
+                        {mealsForUI.length > 0 ? (
+                            mealsForUI.map(meal => (
+                                <MealCard
+                                    key={meal.id}
+                                    meal={meal}
+                                    isExpanded={expandedMeals.includes(meal.id)}
+                                    onToggle={() => toggleMealExpansion(meal.id)}
+                                />
+                            ))
+                        ) : (
+                            <View style={styles.emptyMeals}>
+                                <Text style={styles.emptyMealsText}>No meals configured</Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
                 {/* Bottom padding */}
                 <View style={{ height: verticalScale(24) }} />
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -408,16 +502,29 @@ const styles = StyleSheet.create({
         paddingHorizontal: horizontalScale(20),
         paddingVertical: verticalScale(8),
         borderRadius: horizontalScale(20),
+        minWidth: horizontalScale(60),
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     saveButtonText: {
         fontSize: ScaleFontSize(14),
         fontWeight: '700',
         color: '#FFFFFF',
     },
+    // Loading
+    loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: verticalScale(12),
+    },
+    loadingText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+    },
     // Content
     content: {
         flex: 1,
-        padding: horizontalScale(16),
     },
     // Section
     section: {
@@ -427,6 +534,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         overflow: 'hidden',
         marginBottom: verticalScale(20),
+        marginTop: verticalScale(16),
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -603,8 +711,8 @@ const styles = StyleSheet.create({
         padding: horizontalScale(8),
     },
     mealContent: {
-        padding: horizontalScale(16),
-        paddingTop: 0,
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(20),
         gap: verticalScale(16),
         borderTopWidth: 1,
         borderTopColor: colors.border,
@@ -615,7 +723,8 @@ const styles = StyleSheet.create({
         borderRadius: horizontalScale(8),
         borderWidth: 1,
         borderColor: colors.border,
-        padding: horizontalScale(12),
+        paddingHorizontal: horizontalScale(12),
+        paddingVertical: verticalScale(12),
         gap: verticalScale(12),
     },
     categoryHeader: {
@@ -636,7 +745,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         paddingHorizontal: horizontalScale(12),
-        paddingVertical: verticalScale(8),
+        paddingVertical: verticalScale(10),
         alignItems: 'center',
         justifyContent: 'space-between',
     },
@@ -683,6 +792,18 @@ const styles = StyleSheet.create({
     addCategoryText: {
         fontSize: ScaleFontSize(14),
         fontWeight: '500',
+        color: colors.textSecondary,
+    },
+    // Empty Meals
+    emptyMeals: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: horizontalScale(12),
+        padding: horizontalScale(32),
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyMealsText: {
+        fontSize: ScaleFontSize(14),
         color: colors.textSecondary,
     },
 });

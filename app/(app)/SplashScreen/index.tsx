@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, View, ActivityIndicator, Text } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { colors } from '@/src/constants/Themes';
+import { colors } from '@/src/core/constants/Themes';
 
 const SplashScreen = () => {
     const router = useRouter();

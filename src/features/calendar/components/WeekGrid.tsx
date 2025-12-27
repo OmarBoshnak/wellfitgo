@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
-import { colors } from '@/src/theme';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale } from '@/src/utils/scaling';
+import { colors } from '@/src/core/theme';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale } from '@/src/core/utils/scaling';
 import { DayInfo, CalendarEvent, PositionedEvent } from '../types';
 import { HOUR_HEIGHT, TOTAL_HOURS, TIME_COLUMN_WIDTH } from '../utils/time';
 import { calculatePositionedEvents, getEventsForDay } from '../utils/layout';

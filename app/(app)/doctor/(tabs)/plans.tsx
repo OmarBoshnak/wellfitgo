@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Filter, CheckCircle, BarChart3, AlertCircle, AlertTriangle } from 'lucide-react-native';
-import { colors, gradients } from '@/src/theme';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { Search, CheckCircle, BarChart3, AlertCircle, AlertTriangle } from 'lucide-react-native';
+import { colors, gradients } from '@/src/core/theme';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import {
     DietCategoriesGrid,
-    CalorieRangesList,
-    DietDetailsView,
     AssignClientModal,
     CreateCategoryModal,
-    EditDietScreen,
+    useDoctorPlans,
+    useDoctorPlansMutations,
 } from '@/src/features/meals';
-// TODO: These components need implementation - temporarily import from old location
-import EditMealCategories from '@/src/component/doctor/plans/EditMealCategories';
-import MealPlanCreator from '@/src/component/doctor/plans/MealPlanCreator';
+import type { DoctorPlanItem, DraftPlanItem } from '@/src/features/meals';
+import MealPlanCreator from '@/src/features/doctor/components/plans/MealPlanCreator';
 
 const t = {
     plans: isRTL ? 'الخطط' : 'Plans',
@@ -57,83 +55,8 @@ const t = {
     hoursAgo: isRTL ? 'ساعات مضت' : 'hours ago',
 };
 
-// Enhanced mock data matching HTML design
-const mockActivePlans = [
-    {
-        id: '1',
-        clientId: '1',
-        clientName: isRTL ? 'أحمد حسن' : 'Ahmed Hassan',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCpe5FJh5O1wuDWobRDKx3o9cD8bQZ0Jk2DYWjbP9nb0fJF558UKBHC1w9RnWwPaje15JLDBWU5hMnipEUxIt-vGHeCQxeW0-2dfTz3I-GVuX2Y0IL8seWAiv_lgKvemUFzgbrIS2VXwtEor7Dd5r_zzia7uM1NsvGE8873fDgkA__ofW7naAJDt7VWPTF333UMeuA5dTKESf09alf0BD8cSo8BgC1F3wIhJUbAD6SlDT6U8HFQydeA8JLWjNZDld4Rze8cWSG7jW8',
-        dietProgram: '🥗 Classic 1200-1300',
-        daysLeft: 21,
-        weekNumber: 3,
-        startDate: 'Nov 25',
-        mealsCompleted: 18,
-        totalMeals: 21,
-        weightChange: -2.1,
-        status: 'good', // good | warning | paused
-        statusMessage: null,
-        missedMeals: 0,
-    },
-    {
-        id: '2',
-        clientId: '2',
-        clientName: isRTL ? 'ليلى محمود' : 'Layla Mahmoud',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDeSAyjgpaPjDL_6ESbVQTaViWk6ffoDb9qF7TepjXAwRbm5dDcgFoWScOdAiY1KBAsW2XXBYZxIgfg-5-D_SslMwQ0DUCw_7FqgauGUdF_3Rg2fXTCrLWjQnHq8y6f0qJrG--PEEqgXpmgfVb_-l0RbsD3yO5W7w9sySxyaj2gw173jouU-45nZYr7Ro2u1OlEorJebI-ET4Ut5ghb1iUeT3bIpwezDeHxVYvXCcUYQgT4ofEJt2hSP-7pesqu32jvvHfl8Pm6_3k',
-        dietProgram: '🥑 Keto Strict Phase',
-        daysLeft: 12,
-        weekNumber: 2,
-        startDate: 'Dec 01',
-        mealsCompleted: 8,
-        totalMeals: 21,
-        weightChange: -0.5,
-        status: 'warning',
-        statusMessage: null,
-        missedMeals: 2,
-    },
-    {
-        id: '3',
-        clientId: '3',
-        clientName: isRTL ? 'سارة جونز' : 'Sarah Jones',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBL6u921sOziigkcyhgD-DkpPLec8Km58D8FvTogz8x41tT9ZKbuhqrDCOTF1tlgjGW8yS8Xi6eVNodMZmGXiY96IxTtdxNexALdU1VwL3CTgaj5u0-ZTYN67EmLI9zqBJ9eO_Vr-AHNFTE0GDzeEFT7iylD-9wuKTr7TKPa72DYwEQ_CW9uoN6PHFBiFDQQpr6bjnVHirA52kDf8-cXX3ll54SaFl58uqlnFwyuRO7moHe_EBQzG9p8EvH_8KB_Y-QmJDEIemH83A',
-        dietProgram: '🥩 High Protein Plus',
-        daysLeft: 0,
-        weekNumber: 1,
-        startDate: 'Dec 05',
-        mealsCompleted: 0,
-        totalMeals: 21,
-        weightChange: 0,
-        status: 'paused',
-        statusMessage: 'not started',
-        missedMeals: 0,
-    },
-    {
-        id: '4',
-        clientId: '4',
-        clientName: isRTL ? 'عمر خالد' : 'Omar Khaled',
-        avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAQt-4eKXpf2xCVSgrdZ-M1cVK6ek9C_ORdr3qT-6BEz8Tn5cqjlZpFDcIDNO0lUR9cx1wsvUELwsTuXrQe9lv885qPxNvn4SNdCQk4lb14DwtAa-sjhiNNHK_x05HGjxUniwzkqzK9L_3_509JQq4Ot0n2kSlddFJD7oJH7QYtresMHQqPl31QzCe-JVgczMdwmSOH5sLEsJ7qWio2AfyBIG7jiaYdQrKT4Gjg-z_EVMuq0NOM5efcwm0aX0Uhig0GgDHAfhxn24s',
-        dietProgram: '⏰ Intermittent Fasting',
-        daysLeft: 5,
-        weekNumber: 4,
-        startDate: 'Nov 15',
-        mealsCompleted: 20,
-        totalMeals: 21,
-        weightChange: -4.5,
-        status: 'good',
-        statusMessage: 'finishing',
-        missedMeals: 0,
-    },
-];
-
-const mockDraftPlans = [
-    {
-        id: '5',
-        title: isRTL ? 'خطة مخصصة لأحمد' : 'Custom Plan for Ahmed',
-        basedOn: 'Classic 1200-1300',
-        lastEdited: 2, // hours ago
-        progressPercent: 70,
-    },
-];
+// Translations for loading/empty states
+const loadingText = isRTL ? 'جاري التحميل...' : 'Loading...';
 
 type TabType = 'active' | 'drafts' | 'programs';
 type ProgramsViewType = 'categories' | 'ranges' | 'details' | 'edit' | 'editMeal';
@@ -145,7 +68,7 @@ export default function PlansScreen() {
     const [selectedCategory, setSelectedCategory] = useState<any>(null);
     const [selectedDiet, setSelectedDiet] = useState<any>(null);
     const [selectedMeal, setSelectedMeal] = useState<any>(null);
-    const [selectedPlan, setSelectedPlan] = useState<any>(null);
+    const [selectedPlan, setSelectedPlan] = useState<DoctorPlanItem | null>(null);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showMealPlanCreator, setShowMealPlanCreator] = useState(false);
     const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
@@ -156,6 +79,16 @@ export default function PlansScreen() {
         nameAr: string;
         count: number;
     }[]>([]);
+
+    // ============ CONVEX DATA HOOKS ============
+    const {
+        activePlans,
+        draftPlans,
+        isLoading,
+        activePlansCount,
+        draftPlansCount,
+    } = useDoctorPlans();
+    const { deleteDraft } = useDoctorPlansMutations();
 
     const handleCategorySelect = (category: any) => {
         setSelectedCategory(category);
@@ -227,7 +160,7 @@ export default function PlansScreen() {
         }
     };
 
-    const renderActivePlanCard = (plan: typeof mockActivePlans[0]) => {
+    const renderActivePlanCard = (plan: DoctorPlanItem) => {
         const progressPercent = (plan.mealsCompleted / plan.totalMeals) * 100;
         const statusColor = getStatusColor(plan.status);
 
@@ -240,7 +173,15 @@ export default function PlansScreen() {
                     {/* Header */}
                     <View style={[styles.planHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <View style={[styles.clientRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <Image source={{ uri: plan.avatar }} style={styles.avatar} />
+                            {plan.avatar ? (
+                                <Image source={{ uri: plan.avatar }} style={styles.avatar} />
+                            ) : (
+                                <View style={[styles.avatar, { backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Text style={{ fontSize: ScaleFontSize(16), color: colors.textSecondary }}>
+                                        {plan.clientName.charAt(0)}
+                                    </Text>
+                                </View>
+                            )}
                             <Text style={styles.clientName}>{plan.clientName}</Text>
                         </View>
                         {plan.status === 'paused' ? (
@@ -373,7 +314,7 @@ export default function PlansScreen() {
         </View>
     );
 
-    const renderDraftCard = (draft: typeof mockDraftPlans[0]) => (
+    const renderDraftCard = (draft: DraftPlanItem) => (
         <View key={draft.id} style={styles.draftCard}>
             {/* Title */}
             <Text style={[styles.draftTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
@@ -386,7 +327,7 @@ export default function PlansScreen() {
                     {t.basedOn}: {draft.basedOn}
                 </Text>
                 <Text style={[styles.draftLastEdited, { textAlign: isRTL ? 'left' : 'right' }]}>
-                    {t.lastEdited}: {draft.lastEdited} {t.hoursAgo}
+                    {t.lastEdited}: {draft.lastEditedHours} {t.hoursAgo}
                 </Text>
             </View>
 
@@ -408,7 +349,10 @@ export default function PlansScreen() {
 
             {/* Action Buttons */}
             <View style={[styles.draftActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TouchableOpacity style={styles.deleteButton}>
+                <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => deleteDraft(draft.id)}
+                >
                     <Text style={styles.deleteButtonText}>{t.delete}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.continueButtonWrapper} activeOpacity={0.9}>
@@ -460,9 +404,9 @@ export default function PlansScreen() {
     };
 
     return (
-        <SafeAreaView edges={['top']} style={styles.container}>
+        <SafeAreaView edges={['left', 'right']} style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+            <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
                 <Text style={styles.title}>{t.plans}</Text>
                 <View style={[styles.headerActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <TouchableOpacity style={styles.headerButton}>
@@ -474,8 +418,8 @@ export default function PlansScreen() {
             {/* Tabs */}
             <View style={styles.tabsContainer}>
                 <View style={[styles.tabsRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    {renderTab('active', t.activePlans, mockActivePlans.length)}
-                    {renderTab('drafts', t.drafts, mockDraftPlans.length)}
+                    {renderTab('active', t.activePlans, activePlansCount)}
+                    {renderTab('drafts', t.drafts, draftPlansCount)}
                     {renderTab('programs', t.dietPrograms)}
                 </View>
             </View>
@@ -492,10 +436,15 @@ export default function PlansScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {/* Plans List */}
-                        {mockActivePlans.length > 0 ? (
+                        {/* Loading / Plans List */}
+                        {isLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color={colors.primaryDark} />
+                                <Text style={styles.loadingText}>{loadingText}</Text>
+                            </View>
+                        ) : (activePlans && activePlans.length > 0) ? (
                             <View style={styles.plansList}>
-                                {mockActivePlans.map(renderActivePlanCard)}
+                                {activePlans.map(renderActivePlanCard)}
                             </View>
                         ) : renderEmptyState()}
                     </>
@@ -514,55 +463,25 @@ export default function PlansScreen() {
                         </View>
 
                         {/* Draft Plans List */}
-                        {mockDraftPlans.length > 0 ? (
+                        {isLoading ? (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color={colors.primaryDark} />
+                                <Text style={styles.loadingText}>{loadingText}</Text>
+                            </View>
+                        ) : (draftPlans && draftPlans.length > 0) ? (
                             <View style={styles.plansList}>
-                                {mockDraftPlans.map(renderDraftCard)}
+                                {draftPlans.map(renderDraftCard)}
                             </View>
                         ) : renderEmptyState()}
                     </>
                 )}
 
                 {activeTab === 'programs' && (
-                    <>
-                        {programsView === 'categories' && (
-                            <DietCategoriesGrid
-                                onCategorySelect={handleCategorySelect}
-                                onCreateCustom={() => setShowCreateCategoryModal(true)}
-                                onDeleteCategory={handleDeleteCategory}
-                                customCategories={customCategories}
-                            />
-                        )}
-                        {programsView === 'ranges' && (
-                            <CalorieRangesList
-                                category={selectedCategory}
-                                onBack={() => setProgramsView('categories')}
-                                onAssign={handleAssign}
-                                onView={handleDietView}
-                                onEdit={handleDietEdit}
-                            />
-                        )}
-                        {programsView === 'details' && (
-                            <DietDetailsView
-                                diet={selectedDiet}
-                                onBack={() => setProgramsView('ranges')}
-                                onAssign={() => handleAssign()}
-                            />
-                        )}
-                        {programsView === 'edit' && (
-                            <EditDietScreen
-                                diet={selectedDiet}
-                                onBack={() => setProgramsView('ranges')}
-                                onSave={() => setProgramsView('ranges')}
-                            />
-                        )}
-                        {programsView === 'editMeal' && (
-                            <EditMealCategories
-                                meal={selectedMeal}
-                                onBack={() => setProgramsView('edit')}
-                                onDone={() => setProgramsView('edit')}
-                            />
-                        )}
-                    </>
+                    <DietCategoriesGrid
+                        onCreateCustom={() => setShowCreateCategoryModal(true)}
+                        onDeleteCategory={handleDeleteCategory}
+                        customCategories={customCategories}
+                    />
                 )}
             </ScrollView>
 
@@ -578,7 +497,10 @@ export default function PlansScreen() {
             <CreateCategoryModal
                 visible={showCreateCategoryModal}
                 onClose={() => setShowCreateCategoryModal(false)}
-                onCreate={handleCreateCategory}
+                onSuccess={() => {
+                    // Refresh categories on success
+                    setShowCreateCategoryModal(false);
+                }}
             />
 
             {/* Meal Plan Creator Full Screen */}
@@ -587,7 +509,7 @@ export default function PlansScreen() {
                     <MealPlanCreator
                         clientId={selectedPlan.clientId}
                         clientName={selectedPlan.clientName}
-                        clientAvatar={selectedPlan.avatar}
+                        clientAvatar={selectedPlan.avatar ?? undefined}
                         onBack={() => setShowMealPlanCreator(false)}
                     />
                 </View>
@@ -610,7 +532,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     title: {
-        fontSize: ScaleFontSize(18),
+        fontSize: ScaleFontSize(24),
         fontWeight: '700',
         color: colors.textPrimary,
     },
@@ -972,5 +894,19 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         fontWeight: '700',
         color: '#FFFFFF',
+    },
+    // Loading state
+    loadingContainer: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: horizontalScale(16),
+        padding: horizontalScale(32),
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: verticalScale(200),
+    },
+    loadingText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        marginTop: verticalScale(12),
     },
 });

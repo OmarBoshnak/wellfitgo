@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/src/constants/Themes';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/constants/Themes';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 // Arabic translations
 const t = {

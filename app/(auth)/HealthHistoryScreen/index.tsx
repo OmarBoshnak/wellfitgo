@@ -1,12 +1,12 @@
-import { colors } from '@/src/constants/Themes';
-import { healthTranslations, isRTL } from '@/src/constants/translations';
+import { colors } from '@/src/core/constants/Themes';
+import { healthTranslations, isRTL } from '@/src/core/constants/translations';
 import { useAppDispatch } from '@/src/store/hooks';
 import { setHealthData } from '@/src/store/userSlice';
 import {
     horizontalScale,
     ScaleFontSize,
     verticalScale,
-} from '@/src/utils/scaling';
+} from '@/src/core/utils/scaling';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';

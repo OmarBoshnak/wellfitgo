@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
-import { isRTL } from '@/src/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { isRTL } from '@/src/core/constants/translations';
 import { mealPlanColors, borderRadius } from '../constants';
 import { t } from '../translations';
 import { ProgressSteps } from '../components/ProgressSteps';

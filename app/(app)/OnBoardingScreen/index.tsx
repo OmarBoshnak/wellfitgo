@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Swiper from 'react-native-swiper';
-import { Slides } from '@/src/constants/Slides';
-import { OnBoardingSlide } from '@/src/shared';
-import { colors } from '@/src/constants/Themes';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { Slides } from '@/src/core/constants/Slides';
+import { OnBoardingSlide } from '@/src/components/ui';
+import { colors } from '@/src/core/constants/Themes';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 const { width, height } = Dimensions.get('window');
 

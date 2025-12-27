@@ -1,11 +1,11 @@
-import { AuthButton, GradientBackground } from '@/src/shared';
-import { colors } from '@/src/constants/Themes';
-import { useClerkAuth } from '@/src/hooks/useClerkAuth';
+import { AuthButton, GradientBackground } from '@/src/components/ui';
+import { colors } from '@/src/core/constants/Themes';
+import { useClerkAuth } from '@/src/features/auth/hooks/useClerkAuth';
 import {
     horizontalScale,
     ScaleFontSize,
     verticalScale,
-} from '@/src/utils/scaling';
+} from '@/src/core/utils/scaling';
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 

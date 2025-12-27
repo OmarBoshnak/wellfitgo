@@ -30,10 +30,10 @@ import {
     Camera,
     ArrowLeft,
 } from 'lucide-react-native';
-import { colors } from '@/src/theme';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
-import { SegmentedControl } from '@/src/component/common/SegmentedControl';
+import { colors } from '@/src/core/theme';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { SegmentedControl } from '@/src/components/common/SegmentedControl';
 
 // =============================================================================
 // TRANSLATIONS

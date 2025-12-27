@@ -15,8 +15,8 @@ import {
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
-import { isRTL } from '@/src/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { isRTL } from '@/src/core/constants/translations';
 import { mealPlanColors, borderRadius, shadows, planOptions } from '../constants';
 import { t } from '../translations';
 import type { ClientInfo, CurrentPlan, PlanOption } from '../types';

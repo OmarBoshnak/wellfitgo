@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useEffect } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '@/src/theme';
+import { colors } from '@/src/core/theme';
 import { ChatMessage, ChatConversation } from './types';
 import { MealPlan } from './MealPlanSelectorSheet';
 import ChatHeader from './ChatHeader';

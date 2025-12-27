@@ -17,7 +17,7 @@ import { AddCategorySheet } from '../components/AddCategorySheet';
 import { EditCategorySheet } from '../components/EditCategorySheet';
 import { t } from '../translations';
 import type { ClientInfo, NumberOfMeals, PlanDuration, MealPreview, FoodCategory } from '../types';
-import { isRTL } from '@/src/constants/translations';
+import { isRTL } from '@/src/core/constants/translations';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 

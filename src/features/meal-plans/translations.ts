@@ -2,7 +2,7 @@
  * Meal Plan Translations
  * English/Arabic strings for the Create Meal Plan flow
  */
-import { isRTL } from '@/src/constants/translations';
+import { isRTL } from '@/src/core/constants/translations';
 
 export const t = {
     // Bottom Sheet

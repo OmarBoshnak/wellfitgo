@@ -2,8 +2,8 @@ import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus } from 'lucide-react-native';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, verticalScale } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, verticalScale } from '@/src/core/utils/scaling';
 
 interface FloatingAddButtonProps {
     onPress?: () => void;

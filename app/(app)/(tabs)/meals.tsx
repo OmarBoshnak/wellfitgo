@@ -10,11 +10,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, shadows } from '@/src/constants/Themes';
-import { ScaleFontSize } from '@/src/utils/scaling';
-import { isRTL } from '@/src/constants/translations';
+import { colors, shadows } from '@/src/core/constants/Themes';
+import { ScaleFontSize } from '@/src/core/utils/scaling';
+import { isRTL } from '@/src/core/constants/translations';
 import { Meal } from '@/src/types/meals';
-import { MealCard } from '@/src/component/MealCard';
+import { MealCard } from '@/src/features/meals/components/MealCard';
 import { useAppSelector, useAppDispatch } from '@/src/store/hooks';
 import {
     selectMeals,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { getCurrentTimePosition, formatTime, TIME_COLUMN_WIDTH } from '../utils/time';
 
 export const CurrentTimeLine: React.FC = () => {

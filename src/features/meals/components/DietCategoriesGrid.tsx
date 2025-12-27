@@ -1,39 +1,29 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Stethoscope, Clock, Activity, Trash2 } from 'lucide-react-native';
-import { colors, gradients } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { Plus, Stethoscope, Clock, Activity, Trash2, Utensils } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { useDietCategories, type DietCategory } from '../hooks/useDietCategories';
 
 const t = {
     categories: isRTL ? 'الفئات' : 'CATEGORIES',
     chooseCategory: isRTL ? 'اختر فئة النظام الغذائي' : 'Choose a diet category',
     programs: isRTL ? 'برامج' : 'programs',
+    loading: isRTL ? 'جاري التحميل...' : 'Loading...',
+    noCategories: isRTL ? 'لا توجد فئات' : 'No categories found',
+    createFirst: isRTL ? 'أنشئ نظامًا غذائيًا للبدء' : 'Create a diet plan to get started',
 };
 
-interface DietCategory {
-    id: string;
-    emoji?: string;
-    icon?: 'medical' | 'clock' | 'glucose';
-    name: string;
-    nameAr: string;
-    count: number;
-}
-
-const DIET_CATEGORIES: DietCategory[] = [
-    { id: 'classic', emoji: '🥗', name: 'Classic', nameAr: 'كلاسيكي', count: 14 },
-    { id: 'high_protein', emoji: '🥩', name: 'High Protein', nameAr: 'عالي البروتين', count: 14 },
-    { id: 'low_carb', emoji: '🥑', name: 'Low Carb', nameAr: 'قليل النشويات', count: 14 },
-    { id: 'keto', emoji: '�', name: 'Keto', nameAr: 'كيتو', count: 14 },
-    { id: 'vegetarian', emoji: '🥬', name: 'Vegetarian', nameAr: 'نباتي', count: 10 },
-    { id: 'post_surgery', icon: 'medical', name: 'Post-Surgery', nameAr: 'بعد العمليات', count: 8 },
-    { id: 'intermittent_fasting', icon: 'clock', name: 'Intermittent Fasting', nameAr: 'الصيام المتقطع', count: 6 },
-    { id: 'diabetic_friendly', icon: 'glucose', name: 'Diabetic Friendly', nameAr: 'لمرضى السكر', count: 8 },
-];
+// Icon mapping for special categories that use icons instead of emoji
+const ICON_CATEGORIES: Record<string, 'medical' | 'clock' | 'glucose'> = {
+    medical: 'medical',
+    intermittent_fasting: 'clock',
+};
 
 interface Props {
-    onCategorySelect: (category: DietCategory) => void;
     onCreateCustom: () => void;
     onDeleteCategory?: (categoryId: string) => void;
     customCategories?: {
@@ -45,49 +35,57 @@ interface Props {
     }[];
 }
 
-export default function DietCategoriesGrid({ onCategorySelect, onCreateCustom, onDeleteCategory, customCategories = [] }: Props) {
+export default function DietCategoriesGrid({ onCreateCustom, onDeleteCategory, customCategories = [] }: Props) {
+    // ============ NAVIGATION ============
+    const router = useRouter();
+
+    // ============ CONVEX DATA ============
+    const { categories, isLoading } = useDietCategories();
+
+    // ============ NAVIGATION HANDLER ============
+    const handleCategoryPress = (category: DietCategory) => {
+        router.push({
+            pathname: '/doctor/diet-plans',
+            params: {
+                categoryId: category.id,
+                categoryName: category.name,
+                categoryNameAr: category.nameAr,
+                categoryEmoji: category.emoji ?? '',
+            },
+        });
+    };
+
     const renderIcon = (category: DietCategory) => {
+        // Check if this category should use an icon instead of emoji
+        const iconType = ICON_CATEGORIES[category.id];
+
+        if (iconType) {
+            const iconProps = {
+                size: horizontalScale(32),
+                color: colors.textPrimary,
+                strokeWidth: 1.5,
+            };
+
+            switch (iconType) {
+                case 'medical':
+                    return <Stethoscope {...iconProps} />;
+                case 'clock':
+                    return <Clock {...iconProps} />;
+                case 'glucose':
+                    return <Activity {...iconProps} />;
+                default:
+                    return null;
+            }
+        }
+
+        // Use emoji if available
         if (category.emoji) {
             return <Text style={styles.categoryEmoji}>{category.emoji}</Text>;
         }
 
-        const iconProps = {
-            size: horizontalScale(32),
-            color: colors.textPrimary,
-            strokeWidth: 1.5,
-        };
-
-        switch (category.icon) {
-            case 'medical':
-                return <Stethoscope {...iconProps} />;
-            case 'clock':
-                return <Clock {...iconProps} />;
-            case 'glucose':
-                return <Activity {...iconProps} />;
-            default:
-                return null;
-        }
+        // Fallback icon
+        return <Utensils size={horizontalScale(32)} color={colors.textPrimary} strokeWidth={1.5} />;
     };
-
-    const renderCategoryCard = ({ item: category }: { item: DietCategory }) => (
-        <TouchableOpacity
-            style={styles.categoryCard}
-            onPress={() => onCategorySelect(category)}
-            activeOpacity={0.7}
-        >
-            <View style={styles.iconContainer}>
-                {renderIcon(category)}
-            </View>
-            <View style={styles.categoryInfo}>
-                <Text style={styles.categoryName}>{category.name}</Text>
-                <View style={[styles.categoryMeta, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    <Text style={styles.categoryNameAr}>{category.nameAr}</Text>
-                    <View style={styles.dotSeparator} />
-                    <Text style={styles.categoryCount}>{category.count} {t.programs}</Text>
-                </View>
-            </View>
-        </TouchableOpacity>
-    );
 
     const renderHeader = () => (
         <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
@@ -108,81 +106,98 @@ export default function DietCategoriesGrid({ onCategorySelect, onCreateCustom, o
         </View>
     );
 
+    const renderLoadingState = () => (
+        <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primaryDark} />
+            <Text style={styles.loadingText}>{t.loading}</Text>
+        </View>
+    );
+
+    const renderEmptyState = () => (
+        <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>📋</Text>
+            <Text style={styles.emptyTitle}>{t.noCategories}</Text>
+            <Text style={styles.emptyText}>{t.createFirst}</Text>
+        </View>
+    );
+
+    const renderCategoryCard = (category: DietCategory, isCustom: boolean = false) => (
+        <View key={category.id} style={isCustom ? styles.customCategoryWrapper : undefined}>
+            <TouchableOpacity
+                style={[styles.categoryCard, isCustom && styles.customCategoryCard]}
+                onPress={() => handleCategoryPress(category)}
+                activeOpacity={0.7}
+            >
+                <View style={styles.iconContainer}>
+                    {renderIcon(category)}
+                </View>
+                <View style={styles.categoryInfo}>
+                    {isCustom ? (
+                        <View style={[styles.categoryNameRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <Text style={styles.categoryName}>{category.name}</Text>
+                            <View style={styles.customBadge}>
+                                <Text style={styles.customBadgeText}>{isRTL ? 'مخصص' : 'Custom'}</Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <Text style={styles.categoryName}>{category.name}</Text>
+                    )}
+                    <View style={[styles.categoryMeta, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <Text style={styles.categoryNameAr}>{category.nameAr}</Text>
+                        <View style={styles.dotSeparator} />
+                        <Text style={styles.categoryCount}>{category.count} {t.programs}</Text>
+                    </View>
+                </View>
+            </TouchableOpacity>
+
+            {/* Delete Button for Custom Categories */}
+            {isCustom && onDeleteCategory && (
+                <TouchableOpacity
+                    style={[styles.deleteButton, { [isRTL ? 'left' : 'right']: horizontalScale(8) }]}
+                    onPress={() => {
+                        Alert.alert(
+                            isRTL ? 'حذف الفئة' : 'Delete Category',
+                            isRTL ? `هل تريد حذف "${category.name}"؟` : `Delete "${category.name}"?`,
+                            [
+                                { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+                                {
+                                    text: isRTL ? 'حذف' : 'Delete',
+                                    style: 'destructive',
+                                    onPress: () => onDeleteCategory(category.id)
+                                },
+                            ]
+                        );
+                    }}
+                >
+                    <Trash2 size={horizontalScale(16)} color="#EB5757" />
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+
     return (
         <View style={styles.container}>
             {renderHeader()}
-            <View style={styles.listContent}>
-                {/* Custom Categories */}
-                {customCategories.map((category) => (
-                    <View key={category.id} style={styles.customCategoryWrapper}>
-                        <TouchableOpacity
-                            style={[styles.categoryCard, styles.customCategoryCard]}
-                            onPress={() => onCategorySelect(category as any)}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.iconContainer}>
-                                <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                            </View>
-                            <View style={styles.categoryInfo}>
-                                <View style={[styles.categoryNameRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                    <Text style={styles.categoryName}>{category.name}</Text>
-                                    <View style={styles.customBadge}>
-                                        <Text style={styles.customBadgeText}>{isRTL ? 'مخصص' : 'Custom'}</Text>
-                                    </View>
-                                </View>
-                                <View style={[styles.categoryMeta, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                    <Text style={styles.categoryNameAr}>{category.nameAr}</Text>
-                                    <View style={styles.dotSeparator} />
-                                    <Text style={styles.categoryCount}>{category.count} {t.programs}</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                        {/* Delete Button */}
-                        <TouchableOpacity
-                            style={[styles.deleteButton, { [isRTL ? 'left' : 'right']: horizontalScale(8) }]}
-                            onPress={() => {
-                                Alert.alert(
-                                    isRTL ? 'حذف الفئة' : 'Delete Category',
-                                    isRTL ? `هل تريد حذف "${category.name}"؟` : `Delete "${category.name}"?`,
-                                    [
-                                        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
-                                        {
-                                            text: isRTL ? 'حذف' : 'Delete',
-                                            style: 'destructive',
-                                            onPress: () => onDeleteCategory?.(category.id)
-                                        },
-                                    ]
-                                );
-                            }}
-                        >
-                            <Trash2 size={horizontalScale(16)} color="#EB5757" />
-                        </TouchableOpacity>
-                    </View>
-                ))}
 
-                {/* Default Categories */}
-                {DIET_CATEGORIES.map((category, index) => (
-                    <View key={category.id}>
-                        <TouchableOpacity
-                            style={styles.categoryCard}
-                            onPress={() => onCategorySelect(category)}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.iconContainer}>
-                                {renderIcon(category)}
-                            </View>
-                            <View style={styles.categoryInfo}>
-                                <Text style={styles.categoryName}>{category.name}</Text>
-                                <View style={[styles.categoryMeta, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                    <Text style={styles.categoryNameAr}>{category.nameAr}</Text>
-                                    <View style={styles.dotSeparator} />
-                                    <Text style={styles.categoryCount}>{category.count} {t.programs}</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                ))}
-            </View>
+            {isLoading ? (
+                renderLoadingState()
+            ) : (
+                <View style={styles.listContent}>
+                    {/* Custom Categories (passed as props) */}
+                    {customCategories.map((category) =>
+                        renderCategoryCard(category as DietCategory, true)
+                    )}
+
+                    {/* Dynamic Categories from Convex */}
+                    {categories && categories.length > 0 ? (
+                        categories.map((category) =>
+                            renderCategoryCard(category, false)
+                        )
+                    ) : customCategories.length === 0 ? (
+                        renderEmptyState()
+                    ) : null}
+                </View>
+            )}
         </View>
     );
 }
@@ -303,5 +318,43 @@ const styles = StyleSheet.create({
         padding: horizontalScale(8),
         borderRadius: horizontalScale(20),
         zIndex: 10,
+    },
+    // Loading State
+    loadingContainer: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: horizontalScale(12),
+        padding: horizontalScale(32),
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: verticalScale(200),
+    },
+    loadingText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        marginTop: verticalScale(12),
+    },
+    // Empty State
+    emptyContainer: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: horizontalScale(12),
+        padding: horizontalScale(32),
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: verticalScale(200),
+    },
+    emptyEmoji: {
+        fontSize: ScaleFontSize(48),
+        marginBottom: verticalScale(16),
+    },
+    emptyTitle: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '600',
+        color: colors.textPrimary,
+        marginBottom: verticalScale(8),
+    },
+    emptyText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        textAlign: 'center',
     },
 });

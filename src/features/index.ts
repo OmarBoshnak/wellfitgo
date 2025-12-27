@@ -13,5 +13,8 @@ export * from './meals';
 // Tracking (client-only: weight, water)
 export * from './tracking';
 
-// Clients (doctor-only: client management)
-export * from './clients';
+// Patient (renamed from clients - doctor-only: patient management)
+export * from './patient';
+
+// Doctor (doctor-only: dashboard, appointments)
+export * from './doctor';

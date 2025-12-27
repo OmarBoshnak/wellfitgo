@@ -1,4 +1,4 @@
-import { isRTL } from '@/src/i18n';
+import { isRTL } from '@/src/core/i18n';
 
 // Calendar translations - English and Arabic
 export const calendarTranslations = {

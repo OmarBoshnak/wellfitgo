@@ -1,134 +1,132 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, ArrowRight, Share2, MoreVertical, ChevronRight, ChevronDown, Users, Calendar, UserPlus } from 'lucide-react-native';
-import { colors, gradients } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors, gradients } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { useDietDetails } from '../hooks/useDietDetails';
+import { Id } from '@/convex/_generated/dataModel';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// ============ TRANSLATIONS ============
 const t = {
-    classic: isRTL ? 'كلاسيك' : 'Classic',
     caloriesDay: isRTL ? 'سعرات/يوم' : 'Calories/day',
     assignedTo: isRTL ? 'مخصص لـ' : 'Assigned to',
     clients: isRTL ? 'عملاء' : 'clients',
     created: isRTL ? 'تم الإنشاء' : 'Created',
     dailyMeals: isRTL ? 'الوجبات اليومية' : 'Daily Meals',
+    weeklyMeals: isRTL ? 'وجبات الأسبوع' : 'Weekly Meals',
     mealsIncluded: isRTL ? 'وجبات مشمولة' : 'meals included',
-    breakfast: isRTL ? 'الافطار' : 'Breakfast',
-    morningSnack: isRTL ? 'سناك الصباح' : 'Morning Snack',
-    lunch: isRTL ? 'الغداء' : 'Lunch',
-    afternoonSnack: isRTL ? 'سناك العصر' : 'Afternoon Snack',
-    dinner: isRTL ? 'العشاء' : 'Dinner',
-    carbs: isRTL ? 'النشويات' : 'Carbs',
-    protein: isRTL ? 'البروتين' : 'Protein',
-    dairy: isRTL ? 'الألبان' : 'Dairy',
-    vegetables: isRTL ? 'الخضار' : 'Vegetables',
     assignToClient: isRTL ? 'تعيين للعميل' : 'Assign to Client',
+    loading: isRTL ? 'جاري التحميل...' : 'Loading...',
+    notFound: isRTL ? 'الخطة غير موجودة' : 'Plan not found',
+    noMeals: isRTL ? 'لا توجد وجبات' : 'No meals for this day',
 };
 
-const DIET_DETAILS = {
-    breakfast: {
-        carbs: ['نص رغيف خبز اسمر', 'شريحتين توست اسمر', '4 بقسماط سن', '1 بيتي بان اسمر'],
-        protein: ['بيضة مسلوقة', '2 ملعقة فول', 'قطعة جبنة قريش', '2 ملعقة جبنة لايت'],
-        dairy: ['كوب لبن خالي الدسم', 'علبة زبادي لايت'],
-    },
-    morningSnack: { fruit: ['ثمرة فاكهة', 'طبق سلطة صغير'] },
-    lunch: {
-        carbs: ['3 معالق مكرونة', 'أرز مطبوخ بملعقة زيت', 'نص رغيف بلدي'],
-        protein: ['شريحة صدر فراخ', 'سمكة مشوية', 'قطعة لحم مشوي'],
-        vegetables: ['طبق خضار مطبوخ', 'خضار سوتيه', 'طبق سلطة كبير'],
-    },
-    afternoonSnack: { snack: ['مكسرات 5 حبات', 'كوب زبادي'] },
-    dinner: {
-        protein: ['قطعة جبن قريش', 'جبنة لايت', 'بيضة', 'نص علبة تونة'],
-        carbs: ['شريحة توست اسمر', 'ربع رغيف بلدي'],
-    },
+// Day keys for daily format
+const WEEKDAYS = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const;
+type WeekDay = typeof WEEKDAYS[number];
+
+const DAY_LABELS: Record<WeekDay, { en: string; ar: string }> = {
+    saturday: { en: 'Sat', ar: 'سبت' },
+    sunday: { en: 'Sun', ar: 'أحد' },
+    monday: { en: 'Mon', ar: 'اثن' },
+    tuesday: { en: 'Tue', ar: 'ثلا' },
+    wednesday: { en: 'Wed', ar: 'أرب' },
+    thursday: { en: 'Thu', ar: 'خمي' },
+    friday: { en: 'Fri', ar: 'جمع' },
 };
 
-interface MealData {
-    id: string;
-    emoji: string;
-    nameAr: string;
-    nameEn: string;
-    categories: {
-        emoji: string;
-        label: string;
-        items: string[];
-    }[];
+// Get current weekday
+const getCurrentWeekday = (): WeekDay => {
+    const days: WeekDay[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    return days[new Date().getDay()];
+};
+
+// ============ TYPES ============
+interface MealCategory {
+    emoji?: string;
+    name: string;
+    nameAr?: string;
+    items: string[]; // Mapped from options[].text
 }
 
-const MEALS: MealData[] = [
-    {
-        id: 'breakfast',
-        emoji: '☀️',
-        nameAr: 'الافطار',
-        nameEn: 'Breakfast',
-        categories: [
-            { emoji: '🍞', label: t.carbs, items: DIET_DETAILS.breakfast.carbs },
-            { emoji: '🥚', label: t.protein, items: DIET_DETAILS.breakfast.protein },
-            { emoji: '🥛', label: t.dairy, items: DIET_DETAILS.breakfast.dairy },
-        ],
-    },
-    {
-        id: 'morningSnack',
-        emoji: '🍎',
-        nameAr: 'سناك الصباح',
-        nameEn: 'Morning Snack',
-        categories: [
-            { emoji: '🍎', label: isRTL ? 'فاكهة' : 'Fruit', items: DIET_DETAILS.morningSnack.fruit },
-        ],
-    },
-    {
-        id: 'lunch',
-        emoji: '🍽️',
-        nameAr: 'الغداء',
-        nameEn: 'Lunch',
-        categories: [
-            { emoji: '🍞', label: t.carbs, items: DIET_DETAILS.lunch.carbs },
-            { emoji: '🥚', label: t.protein, items: DIET_DETAILS.lunch.protein },
-            { emoji: '🥬', label: t.vegetables, items: DIET_DETAILS.lunch.vegetables },
-        ],
-    },
-    {
-        id: 'afternoonSnack',
-        emoji: '🥜',
-        nameAr: 'سناك العصر',
-        nameEn: 'Afternoon Snack',
-        categories: [
-            { emoji: '🥜', label: isRTL ? 'سناك' : 'Snack', items: DIET_DETAILS.afternoonSnack.snack },
-        ],
-    },
-    {
-        id: 'dinner',
-        emoji: '🌙',
-        nameAr: 'العشاء',
-        nameEn: 'Dinner',
-        categories: [
-            { emoji: '🥚', label: t.protein, items: DIET_DETAILS.dinner.protein },
-            { emoji: '🍞', label: t.carbs, items: DIET_DETAILS.dinner.carbs },
-        ],
-    },
-];
+interface MealForUI {
+    id: string;
+    emoji?: string;
+    name: string;
+    nameAr?: string;
+    categories: MealCategory[];
+}
 
 interface Props {
-    diet: {
-        range?: string;
-        clients?: number;
-        description?: string;
-    };
+    dietId: Id<"dietPlans">;
     onBack: () => void;
     onAssign: () => void;
 }
 
-export default function DietDetailsView({ diet, onBack, onAssign }: Props) {
-    const [expandedMeal, setExpandedMeal] = useState<string | null>('breakfast');
+// ============ COMPONENT ============
+export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
+    const { plan, isLoading } = useDietDetails(dietId);
+    const insets = useSafeAreaInsets();
 
+    // State for daily format
+    const [selectedDay, setSelectedDay] = useState<WeekDay>(getCurrentWeekday());
+    const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
+
+    // ============ RESOLVE MEALS ============
+    const mealsForUI = useMemo((): MealForUI[] => {
+        if (!plan) return [];
+
+        let rawMeals;
+
+        if (plan.format === 'general') {
+            // General format: same meals every day
+            rawMeals = plan.meals;
+        } else if (plan.format === 'daily') {
+            // Daily format: different meals per day
+            const dayData = plan.dailyMeals?.[selectedDay];
+            rawMeals = dayData?.meals;
+        }
+
+        if (!rawMeals || rawMeals.length === 0) return [];
+
+        // Map schema meals to UI structure
+        return rawMeals.map((meal) => ({
+            id: meal.id,
+            emoji: meal.emoji,
+            name: meal.name,
+            nameAr: meal.nameAr,
+            categories: meal.categories.map((cat) => ({
+                emoji: cat.emoji,
+                name: cat.name,
+                nameAr: cat.nameAr,
+                // CRITICAL: Map options to items (string[])
+                items: cat.options.map((opt) => opt.text),
+            })),
+        }));
+    }, [plan, selectedDay]);
+
+    // Set first meal as expanded by default
+    React.useEffect(() => {
+        if (mealsForUI.length > 0 && expandedMeal === null) {
+            setExpandedMeal(mealsForUI[0].id);
+        }
+    }, [mealsForUI.length]);
+
+    // ============ RENDER HELPERS ============
     const BackArrow = () => isRTL
-        ? <ArrowRight size={horizontalScale(24)} color={colors.textPrimary} />
-        : <ArrowLeft size={horizontalScale(24)} color={colors.textPrimary} />;
+        ? <ArrowLeft size={horizontalScale(24)} color={colors.textPrimary} />
+        : <ArrowRight size={horizontalScale(24)} color={colors.textPrimary} />;
 
     const toggleMeal = (mealId: string) => {
         setExpandedMeal(expandedMeal === mealId ? null : mealId);
+    };
+
+    const formatDate = (timestamp: number) => {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     };
 
     const renderTag = (text: string) => (
@@ -146,37 +144,40 @@ export default function DietDetailsView({ diet, onBack, onAssign }: Props) {
         </View>
     );
 
-    const renderCategory = (category: { emoji: string; label: string; items: string[] }) => (
-        <View style={styles.categoryBlock} key={category.label}>
-            <View style={[styles.categoryHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                <Text style={styles.categoryTitle}>{category.label}</Text>
+    const renderCategory = (category: MealCategory, index: number) => (
+        <View style={styles.categoryBlock} key={`${category.name}-${index}`}>
+            <View style={[styles.categoryHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <Text style={styles.categoryEmoji}>{category.emoji || '📋'}</Text>
+                <Text style={styles.categoryTitle}>
+                    {isRTL ? (category.nameAr || category.name) : category.name}
+                </Text>
             </View>
             <View style={styles.itemsList}>
-                {category.items.map((item, index) => (
-                    <View key={index} style={[styles.itemRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                {category.items.map((item, idx) => (
+                    <View key={idx} style={[styles.itemRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <View style={styles.bulletPoint} />
-                        <Text style={[styles.itemText, { textAlign: isRTL ? 'right' : 'left' }]}>{item}</Text>
+                        <Text style={[styles.itemText, { textAlign: isRTL ? 'left' : 'right' }]}>{item}</Text>
                     </View>
                 ))}
             </View>
         </View>
     );
 
-    const renderMealAccordion = (meal: MealData) => {
+    const renderMealAccordion = (meal: MealForUI) => {
         const isExpanded = expandedMeal === meal.id;
 
         return (
             <View key={meal.id} style={[styles.mealCard, isExpanded && styles.mealCardExpanded]}>
                 <TouchableOpacity
-                    style={[styles.mealHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                    style={[styles.mealHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
                     onPress={() => toggleMeal(meal.id)}
                     activeOpacity={0.7}
                 >
-                    <View style={[styles.mealHeaderLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                        <Text style={styles.mealEmoji}>{meal.emoji}</Text>
+                    <View style={[styles.mealHeaderLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                        <Text style={styles.mealEmoji}>{meal.emoji || '🍽️'}</Text>
                         <Text style={styles.mealName}>
-                            {meal.nameAr} ({meal.nameEn})
+                            {isRTL ? (meal.nameAr || meal.name) : meal.name}
+                            {meal.nameAr && !isRTL && ` (${meal.nameAr})`}
                         </Text>
                     </View>
                     {isExpanded ? (
@@ -188,91 +189,166 @@ export default function DietDetailsView({ diet, onBack, onAssign }: Props) {
 
                 {isExpanded && (
                     <View style={styles.mealContent}>
-                        {meal.categories.map(renderCategory)}
+                        {meal.categories.map((cat, idx) => renderCategory(cat, idx))}
                     </View>
                 )}
             </View>
         );
     };
 
+    const renderDaySelector = () => (
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.daySelectorRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+        >
+            {WEEKDAYS.map((day) => {
+                const isSelected = selectedDay === day;
+                const label = isRTL ? DAY_LABELS[day].ar : DAY_LABELS[day].en;
+
+                return (
+                    <TouchableOpacity
+                        key={day}
+                        style={[styles.dayButton, isSelected && styles.dayButtonSelected]}
+                        onPress={() => setSelectedDay(day)}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.dayButtonText, isSelected && styles.dayButtonTextSelected]}>
+                            {label}
+                        </Text>
+                    </TouchableOpacity>
+                );
+            })}
+        </ScrollView>
+    );
+
+    const renderLoadingState = () => (
+        <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primaryDark} />
+            <Text style={styles.loadingText}>{t.loading}</Text>
+        </View>
+    );
+
+    const renderEmptyMeals = () => (
+        <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>📋</Text>
+            <Text style={styles.emptyText}>{t.noMeals}</Text>
+        </View>
+    );
+
+    // ============ LOADING STATE ============
+    if (isLoading) {
+        return (
+            <View style={styles.container}>
+                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                    <TouchableOpacity onPress={onBack} style={styles.headerButton}>
+                        <BackArrow />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>{t.loading}</Text>
+                    <View style={styles.headerActions} />
+                </View>
+                {renderLoadingState()}
+            </View>
+        );
+    }
+
+    // ============ NOT FOUND STATE ============
+    if (!plan) {
+        return (
+            <View style={styles.container}>
+                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                    <TouchableOpacity onPress={onBack} style={styles.headerButton}>
+                        <BackArrow />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>{t.notFound}</Text>
+                    <View style={styles.headerActions} />
+                </View>
+            </View>
+        );
+    }
+
+    // ============ MAIN RENDER ============
     return (
-        <View style={styles.container}>
+        <SafeAreaView edges={['left', 'right']} style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row', paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={onBack} style={styles.headerButton}>
                     <BackArrow />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle} numberOfLines={1}>
-                    {t.classic} {diet?.range || '1200-1300'}
+                    {plan.name}
                 </Text>
-                <View style={[styles.headerActions, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                    <TouchableOpacity style={styles.headerButton}>
-                        <Share2 size={horizontalScale(22)} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerButton}>
-                        <MoreVertical size={horizontalScale(22)} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                </View>
+                <View style={{ marginHorizontal: horizontalScale(16) }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Summary Card */}
                 <View style={styles.summaryCard}>
-                    <View style={[styles.summaryHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.summaryHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <View style={styles.emojiCircle}>
-                            <Text style={styles.summaryEmoji}>🥗</Text>
+                            <Text style={styles.summaryEmoji}>{plan.emoji || '🥗'}</Text>
                         </View>
-                        <View style={{ flex: 1, alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
-                            <Text style={styles.summaryTitle}>{t.classic} Diet</Text>
-                            <Text style={styles.summaryCalories}>
-                                🔥 {diet?.range || '1200-1300'} {t.caloriesDay}
-                            </Text>
+                        <View style={{ flex: 1, alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
+                            <Text style={styles.summaryTitle}>{plan.name}</Text>
+                            {plan.targetCalories && (
+                                <Text style={styles.summaryCalories}>
+                                    🔥 {plan.targetCalories} {t.caloriesDay}
+                                </Text>
+                            )}
                         </View>
                     </View>
 
                     {/* Tags */}
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={[styles.tagsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                    >
-                        {renderTag('Classic')}
-                        {renderTag('Egyptian')}
-                        {renderTag('Balanced')}
-                        {renderTag('Low Carb')}
-                    </ScrollView>
+                    {plan.tags && plan.tags.length > 0 && (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={[styles.tagsRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                        >
+                            {plan.tags.map(renderTag)}
+                        </ScrollView>
+                    )}
 
                     {/* Description */}
-                    <Text style={[styles.summaryDescription, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {diet?.description || 'Moderate weight loss with balanced nutrition. Suitable for most clients seeking gradual progress with familiar Egyptian food options.'}
-                    </Text>
+                    {plan.description && (
+                        <Text style={[styles.summaryDescription, { textAlign: isRTL ? 'left' : 'right' }]}>
+                            {plan.description}
+                        </Text>
+                    )}
 
                     {/* Meta Info */}
-                    <View style={[styles.metaRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                        <View style={[styles.metaItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.metaRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                        <View style={[styles.metaItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <Users size={horizontalScale(14)} color={colors.textSecondary} />
                             <Text style={styles.metaText}>
-                                {t.assignedTo} {diet?.clients || 23} {t.clients}
+                                {t.assignedTo} {plan.usageCount} {t.clients}
                             </Text>
                         </View>
-                        <View style={[styles.metaItem, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={[styles.metaItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <Calendar size={horizontalScale(14)} color={colors.textSecondary} />
                             <Text style={styles.metaText}>
-                                {t.created}: Dec 1, 2024
+                                {t.created}: {formatDate(plan.createdAt)}
                             </Text>
                         </View>
                     </View>
                 </View>
 
+                {/* Day Selector (only for daily format) */}
+                {plan.format === 'daily' && renderDaySelector()}
+
                 {/* Daily Meals Section */}
-                <View style={[styles.sectionHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                    <Text style={styles.sectionTitle}>{t.dailyMeals}</Text>
-                    <Text style={styles.sectionSubtitle}>5 {t.mealsIncluded}</Text>
+                <View style={[styles.sectionHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                    <Text style={styles.sectionTitle}>
+                        {plan.format === 'daily' ? t.weeklyMeals : t.dailyMeals}
+                    </Text>
+                    <Text style={styles.sectionSubtitle}>
+                        {mealsForUI.length} {t.mealsIncluded}
+                    </Text>
                 </View>
 
                 {/* Meal Accordions */}
                 <View style={styles.mealsContainer}>
-                    {MEALS.map(renderMealAccordion)}
+                    {mealsForUI.length > 0 ? mealsForUI.map(renderMealAccordion) : renderEmptyMeals()}
                 </View>
             </ScrollView>
 
@@ -291,24 +367,23 @@ export default function DietDetailsView({ diet, onBack, onAssign }: Props) {
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
-        </View>
+        </SafeAreaView>
     );
 }
 
+// ============ STYLES ============
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.bgPrimary,
-        marginHorizontal: horizontalScale(-16),
-        marginTop: verticalScale(-16),
         overflow: 'visible',
     },
     // Header
     header: {
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: horizontalScale(8),
-        paddingVertical: verticalScale(8),
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(16),
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
         backgroundColor: colors.bgPrimary,
@@ -346,7 +421,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
     },
     summaryHeader: {
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: horizontalScale(12),
         marginBottom: verticalScale(12),
     },
@@ -421,6 +496,32 @@ const styles = StyleSheet.create({
     metaText: {
         fontSize: ScaleFontSize(12),
         color: colors.textSecondary,
+    },
+    // Day Selector
+    daySelectorRow: {
+        paddingHorizontal: horizontalScale(16),
+        gap: horizontalScale(8),
+        marginBottom: verticalScale(16),
+    },
+    dayButton: {
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(8),
+        borderRadius: horizontalScale(8),
+        backgroundColor: colors.bgSecondary,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    dayButtonSelected: {
+        backgroundColor: colors.primaryDark,
+        borderColor: colors.primaryDark,
+    },
+    dayButtonText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '500',
+        color: colors.textSecondary,
+    },
+    dayButtonTextSelected: {
+        color: '#FFFFFF',
     },
     // Section Header
     sectionHeader: {
@@ -517,6 +618,33 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(13),
         color: colors.textSecondary,
         lineHeight: ScaleFontSize(20),
+    },
+    // Loading State
+    loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: verticalScale(12),
+    },
+    loadingText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+    },
+    // Empty State
+    emptyContainer: {
+        backgroundColor: colors.bgSecondary,
+        borderRadius: horizontalScale(12),
+        padding: horizontalScale(32),
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emptyEmoji: {
+        fontSize: ScaleFontSize(32),
+        marginBottom: verticalScale(8),
+    },
+    emptyText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
     },
     // Footer
     footer: {

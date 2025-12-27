@@ -1,10 +1,10 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Users, UtensilsCrossed, MessageSquare, BarChart3, Home } from 'lucide-react-native';
-import { colors } from '@/src/constants/Themes';
+import { colors } from '@/src/core/constants/Themes';
 import { View, Text, StyleSheet } from 'react-native';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 // Tab labels
 const tabLabels = {

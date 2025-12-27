@@ -19,9 +19,9 @@ import {
     ChevronLeft,
     ChevronDown,
 } from 'lucide-react-native';
-import { colors } from '@/src/constants/Themes';
-import { isRTL } from '@/src/constants/translations';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { colors } from '@/src/core/constants/Themes';
+import { isRTL } from '@/src/core/constants/translations';
+import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

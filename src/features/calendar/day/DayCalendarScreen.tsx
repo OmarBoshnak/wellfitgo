@@ -4,8 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { colors } from '@/src/theme';
-import { verticalScale } from '@/src/utils/scaling';
+import { colors } from '@/src/core/theme';
+import { verticalScale } from '@/src/core/utils/scaling';
 import { DayEvent } from './types';
 import { dayViewTranslations as t, formatHour } from './translations';
 import { generateDayTimeSlots } from './utils/time';
@@ -17,7 +17,7 @@ import FloatingAddButton from './components/FloatingAddButton';
 import AddCallModal from './components/AddCallModal';
 import EditEventModal from './components/EditEventModal';
 import ClientProfileModal from './components/ClientProfileModal';
-import { usePhoneCall } from '@/src/hooks/usePhoneCall';
+import { usePhoneCall } from '@/src/features/doctor/hooks/usePhoneCall';
 
 // ============================================================
 // HELPER: Convert Convex event to DayEvent for rendering

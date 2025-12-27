@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Meal } from '@/src/types/meals';
-import { initialMealsData } from '@/src/data/mealsData';
+import { initialMealsData } from '@/src/features/meals/data/mealsData';
 
 // Helper to get today's date as ISO string (YYYY-MM-DD)
 const getTodayDate = (): string => {

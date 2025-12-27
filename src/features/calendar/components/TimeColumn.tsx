@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '@/src/theme';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/utils/scaling';
+import { colors } from '@/src/core/theme';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, ScaleFontSize, verticalScale } from '@/src/core/utils/scaling';
 import { HOUR_HEIGHT, TIME_COLUMN_WIDTH, generateTimeSlots } from '../utils/time';
 import { formatHourLabel } from '../translations';
 

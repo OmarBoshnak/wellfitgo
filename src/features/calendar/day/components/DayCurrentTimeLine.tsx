@@ -7,8 +7,8 @@ import Animated, {
     withTiming,
     Easing
 } from 'react-native-reanimated';
-import { isRTL } from '@/src/i18n';
-import { horizontalScale, ScaleFontSize } from '@/src/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
+import { horizontalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { getTimeIndicatorPosition } from '../utils/time';
 
 export const DayCurrentTimeLine: React.FC = () => {
