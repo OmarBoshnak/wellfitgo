@@ -17,6 +17,7 @@ The UI must reflect exactly what exists in the database, without inventing abstr
 ## 1. The Mission
 
 Refactor the component to display the actual list of diet plans for a selected category (type), instead of fake calorie ranges.
+**Add a "Create New Diet" feature** at the end of the list to easily add new plans of the current type.
 
 ### Required Changes
 
@@ -31,6 +32,9 @@ Refactor the component to display the actual list of diet plans for a selected c
 4.  **Display**:
     *   Render each individual plan as its own list item/card.
     *   Do not group or transform plans into ranges.
+5.  **Create Action**:
+    *   Add a specific "Create New Plan" button/card at the bottom of the list.
+    *   This button should immediately create a **draft plan** with the current `type` and navigate to the editor.
 
 ---
 
@@ -69,12 +73,6 @@ The `type` argument must exactly match the schema union. Do NOT accept arbitrary
     2.  `targetCalories` (ascending) — if present
     3.  `createdAt` (ascending) — fallback
 
-**Derived Fields**:
-Compute `mealsCount` using explicit rules:
-*   If `format === "general"`: `mealsCount = meals.length`
-*   If `format === "daily"`: `mealsCount = sum of all day.meals.length across the week`
-*   If meals data is missing: `mealsCount = 0`
-
 **Return Shape**:
 ```typescript
 {
@@ -88,7 +86,6 @@ Compute `mealsCount` using explicit rules:
   usageCount: number;
 }[]
 ```
-*Constraint*: Do NOT invent fields that do not exist in the schema.
 
 ---
 
@@ -99,35 +96,28 @@ Create `src/features/meals/hooks/useDietsByType.ts`.
 
 **Responsibilities**:
 *   Wrap `useQuery(api.plans.getDietsByType, { type })`
-*   Return:
-    ```typescript
-    {
-      diets: DietPlan[];
-      isLoading: boolean;
-      error?: Error;
-    }
-    ```
-*   Use strict TypeScript typing aligned with the backend return shape.
+*   Return: `{ diets: DietPlan[], isLoading: boolean, error?: Error }`
 
-### B. Component Refactor
+### B. Create Action Hook
+In `src/features/meals/hooks/usePlanMutations.ts` (ensure this exists or create it):
+*   Add `useCreateDraftPlan`.
+*   Calls `createDietPlan` mutation (args: `{ type, name: 'New Plan', status: 'draft', ... }`).
+*   Returns the new `dietId` on success.
+
+### C. Component Refactor
 Rename `CalorieRangesList.tsx` → `DietPlansList.tsx`.
 
 **Props**:
 Receive the selected category object (containing `id` = diet type).
 
 **Rendering Rules**:
-For each diet plan:
-*   **Title**:
-    *   Primary: `plan.name`
-    *   Secondary (optional): `plan.nameAr`
-*   **Calories Badge**:
-    *   Display only if `targetCalories` exists.
-    *   Example: "🔥 1500 kcal"
-*   **Meta Information**:
-    *   Display: "Meals: X" using `mealsCount`.
-*   **Emoji**:
-    *   Use `plan.emoji` if present.
-    *   Otherwise, fall back to a neutral default emoji.
+1.  **List**: Render the fetched plans using `FlatList`.
+2.  **Footer**: Render a "Create New Plan" button as the `ListFooterComponent`.
+    *   Style: Dashed border, "Plus" icon, centered text ("Create new [Category Name] Plan").
+    *   **Action**:
+        *   Call `createDietPlan({ type: category.id })`.
+        *   Show loading spinner on the button.
+        *   On success, navigate to `EditDietScreen` with the new `dietId`.
 
 ---
 
@@ -136,9 +126,8 @@ For each diet plan:
 1.  **Loading State**:
     *   Render existing skeleton/placeholder UI (do not invent new loaders).
 2.  **Empty State**:
-    *   If no active plans exist for the selected category:
-    *   Show a clear empty message (e.g. “No plans available yet”).
-    *   Preserve layout spacing and typography.
+    *   If no active plans exist, show the "Create New Plan" button prominently (center screen or top of list).
+    *   Message: "No plans found for [Category]. Create the first one!"
 3.  **Styling**:
     *   Preserve the existing Card/List layout.
     *   Only change content, not structure, unless required.
