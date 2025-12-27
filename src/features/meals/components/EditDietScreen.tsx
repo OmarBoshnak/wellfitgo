@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -7,6 +7,10 @@ import {
     ScrollView,
     TextInput,
     ActivityIndicator,
+    Alert,
+    Modal,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -23,15 +27,17 @@ import {
     Trash2,
     X,
     LibraryBig,
+    Check,
 } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDietDetails } from '../hooks/useDietDetails';
-import { usePlanMutations } from '../hooks/usePlanMutations';
+import { usePlanMutations, MealData, MealCategory as MealCategoryType, MealOption } from '../hooks/usePlanMutations';
 import { Id } from '@/convex/_generated/dataModel';
 
+// ============ TRANSLATIONS ============
 const t = {
     edit: isRTL ? 'تعديل' : 'Edit',
     save: isRTL ? 'حفظ' : 'Save',
@@ -51,127 +57,294 @@ const t = {
     notFound: isRTL ? 'الخطة غير موجودة' : 'Plan not found',
     planName: isRTL ? 'اسم الخطة' : 'Plan Name',
     enterPlanName: isRTL ? 'أدخل اسم الخطة' : 'Enter plan name',
+    // Modal translations
+    cancel: isRTL ? 'إلغاء' : 'Cancel',
+    confirm: isRTL ? 'تأكيد' : 'Confirm',
+    delete: isRTL ? 'حذف' : 'Delete',
+    deleteMeal: isRTL ? 'حذف الوجبة' : 'Delete Meal',
+    deleteMealConfirm: isRTL ? 'هل أنت متأكد من حذف' : 'Are you sure you want to delete',
+    editMealName: isRTL ? 'تعديل اسم الوجبة' : 'Edit Meal Name',
+    editCategoryName: isRTL ? 'تعديل اسم الفئة' : 'Edit Category Name',
+    nameAr: isRTL ? 'الاسم بالعربية' : 'Arabic Name',
+    nameEn: isRTL ? 'الاسم بالإنجليزية' : 'English Name',
+    foodItem: isRTL ? 'العنصر الغذائي' : 'Food Item',
+    enterFoodItem: isRTL ? 'أدخل اسم العنصر' : 'Enter food item',
+    newCategory: isRTL ? 'فئة جديدة' : 'New Category',
+    noMeals: isRTL ? 'لا توجد وجبات' : 'No meals configured',
 };
 
-// ============ LOCAL INTERFACES FOR UI ============
-interface MealCategory {
-    id: string;
-    emoji: string;
-    nameAr: string;
-    nameEn: string;
-    items: { id: string; nameAr: string; nameEn: string }[];
-}
-
-interface Meal {
-    id: string;
-    emoji: string;
-    nameAr: string;
-    nameEn: string;
-    optionsCount: number;
-    categories: MealCategory[];
-}
-
+// ============ PROPS ============
 interface Props {
     dietId: Id<"dietPlans">;
     onBack: () => void;
     onSave?: () => void;
 }
 
-// --- Sub-components ---
+// ============ HELPER: Generate unique ID ============
+const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const FoodItem = ({ item }: { item: { id: string; nameAr: string; nameEn: string } }) => (
+// ============ EDIT MODAL COMPONENT ============
+interface EditModalProps {
+    visible: boolean;
+    title: string;
+    nameAr: string;
+    nameEn: string;
+    onChangeNameAr: (text: string) => void;
+    onChangeNameEn: (text: string) => void;
+    onCancel: () => void;
+    onConfirm: () => void;
+}
+
+const EditModal = ({ visible, title, nameAr, nameEn, onChangeNameAr, onChangeNameEn, onCancel, onConfirm }: EditModalProps) => (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+        >
+            <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>{title}</Text>
+
+                <View style={styles.modalInputGroup}>
+                    <Text style={styles.modalInputLabel}>{t.nameAr}</Text>
+                    <TextInput
+                        style={[styles.modalInput, { textAlign: 'right' }]}
+                        value={nameAr}
+                        onChangeText={onChangeNameAr}
+                        placeholder={t.nameAr}
+                        placeholderTextColor={colors.textSecondary}
+                    />
+                </View>
+
+                <View style={styles.modalInputGroup}>
+                    <Text style={styles.modalInputLabel}>{t.nameEn}</Text>
+                    <TextInput
+                        style={[styles.modalInput, { textAlign: 'left' }]}
+                        value={nameEn}
+                        onChangeText={onChangeNameEn}
+                        placeholder={t.nameEn}
+                        placeholderTextColor={colors.textSecondary}
+                    />
+                </View>
+
+                <View style={styles.modalActions}>
+                    <TouchableOpacity style={styles.modalCancelButton} onPress={onCancel}>
+                        <Text style={styles.modalCancelText}>{t.cancel}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onConfirm}>
+                        <LinearGradient
+                            colors={gradients.primary}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.modalConfirmButton}
+                        >
+                            <Check size={horizontalScale(18)} color="#FFFFFF" />
+                            <Text style={styles.modalConfirmText}>{t.confirm}</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </KeyboardAvoidingView>
+    </Modal>
+);
+
+// ============ ADD FOOD MODAL COMPONENT ============
+interface AddFoodModalProps {
+    visible: boolean;
+    value: string;
+    onChangeValue: (text: string) => void;
+    onCancel: () => void;
+    onConfirm: () => void;
+}
+
+const AddFoodModal = ({ visible, value, onChangeValue, onCancel, onConfirm }: AddFoodModalProps) => (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+        >
+            <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>{t.addFoodItem}</Text>
+
+                <View style={styles.modalInputGroup}>
+                    <Text style={styles.modalInputLabel}>{t.foodItem}</Text>
+                    <TextInput
+                        style={[styles.modalInput, { textAlign: isRTL ? 'right' : 'left' }]}
+                        value={value}
+                        onChangeText={onChangeValue}
+                        placeholder={t.enterFoodItem}
+                        placeholderTextColor={colors.textSecondary}
+                        autoFocus
+                    />
+                </View>
+
+                <View style={styles.modalActions}>
+                    <TouchableOpacity style={styles.modalCancelButton} onPress={onCancel}>
+                        <Text style={styles.modalCancelText}>{t.cancel}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={onConfirm}>
+                        <LinearGradient
+                            colors={gradients.primary}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.modalConfirmButton}
+                        >
+                            <Plus size={horizontalScale(18)} color="#FFFFFF" />
+                            <Text style={styles.modalConfirmText}>{t.addFoodItem}</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </KeyboardAvoidingView>
+    </Modal>
+);
+
+// ============ FOOD ITEM COMPONENT ============
+interface FoodItemProps {
+    item: MealOption;
+    onRemove: () => void;
+}
+
+const FoodItem = ({ item, onRemove }: FoodItemProps) => (
     <View style={[styles.foodItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
         <View style={[styles.foodItemContent, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
             <View style={styles.foodItemDot} />
             <Text style={[styles.foodItemText, { textAlign: isRTL ? 'left' : 'right' }]}>
-                {item.nameAr} ({item.nameEn})
+                {item.text}{item.textEn ? ` (${item.textEn})` : ''}
             </Text>
         </View>
-        <TouchableOpacity style={styles.removeItemButton}>
+        <TouchableOpacity style={styles.removeItemButton} onPress={onRemove}>
             <X size={horizontalScale(18)} color="#CBD5E1" />
         </TouchableOpacity>
     </View>
 );
 
-const CategoryCard = ({ category }: { category: MealCategory }) => (
+// ============ CATEGORY CARD COMPONENT ============
+interface CategoryCardProps {
+    category: MealCategoryType;
+    onEditName: () => void;
+    onAddFood: () => void;
+    onRemoveFood: (itemId: string) => void;
+}
+
+const CategoryCard = ({ category, onEditName, onAddFood, onRemoveFood }: CategoryCardProps) => (
     <View style={styles.categoryCard}>
         {/* Category Header */}
         <View style={[styles.categoryHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
             <Text style={styles.categoryTitle}>
-                {category.emoji} {category.nameAr} ({category.nameEn})
+                {category.emoji || '📋'} {category.nameAr || category.name} ({category.name})
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={onEditName}>
                 <Pencil size={horizontalScale(18)} color={colors.textSecondary} />
             </TouchableOpacity>
         </View>
 
         {/* Food Items */}
         <View style={styles.foodItemsList}>
-            {category.items.map(item => <FoodItem key={item.id} item={item} />)}
+            {category.options.map(item => (
+                <FoodItem
+                    key={item.id}
+                    item={item}
+                    onRemove={() => onRemoveFood(item.id)}
+                />
+            ))}
         </View>
 
         {/* Add Food Item Button */}
-        <TouchableOpacity style={[styles.addItemButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+        <TouchableOpacity
+            style={[styles.addItemButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+            onPress={onAddFood}
+        >
             <Plus size={horizontalScale(18)} color={colors.primaryDark} />
             <Text style={styles.addItemText}>{t.addFoodItem}</Text>
         </TouchableOpacity>
     </View>
 );
 
+// ============ MEAL CARD COMPONENT ============
+interface MealCardProps {
+    meal: MealData;
+    isExpanded: boolean;
+    onToggle: () => void;
+    onDelete: () => void;
+    onEditName: () => void;
+    onAddCategory: () => void;
+    onEditCategoryName: (categoryId: string) => void;
+    onAddFood: (categoryId: string) => void;
+    onRemoveFood: (categoryId: string, itemId: string) => void;
+}
+
 const MealCard = ({
     meal,
     isExpanded,
-    onToggle
-}: {
-    meal: Meal;
-    isExpanded: boolean;
-    onToggle: () => void;
-}) => (
-    <View style={styles.mealCard}>
-        {/* Meal Summary Header */}
-        <TouchableOpacity
-            style={[styles.mealHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
-            onPress={onToggle}
-            activeOpacity={0.7}
-        >
-            <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
-                <Text style={styles.mealTitle}>
-                    {meal.emoji} {meal.nameAr} ({meal.nameEn})
-                </Text>
-                <Text style={styles.mealSubtitle}>
-                    • {meal.optionsCount} {t.optionsAvailable}
-                </Text>
-            </View>
-            <View style={[styles.mealActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                <TouchableOpacity style={styles.mealActionButton}>
-                    <Pencil size={horizontalScale(20)} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.mealActionButton}>
-                    <Trash2 size={horizontalScale(20)} color={colors.textSecondary} />
-                </TouchableOpacity>
-                {isExpanded ? (
-                    <ChevronUp size={horizontalScale(20)} color={colors.textSecondary} />
-                ) : (
-                    <ChevronDown size={horizontalScale(20)} color={colors.textSecondary} />
-                )}
-            </View>
-        </TouchableOpacity>
+    onToggle,
+    onDelete,
+    onEditName,
+    onAddCategory,
+    onEditCategoryName,
+    onAddFood,
+    onRemoveFood,
+}: MealCardProps) => {
+    // Calculate options count
+    const optionsCount = meal.categories.reduce((sum, cat) => sum + cat.options.length, 0);
 
-        {/* Expanded Content */}
-        {isExpanded && (
-            <View style={styles.mealContent}>
-                {/* Categories */}
-                {meal.categories.map(category => <CategoryCard key={category.id} category={category} />)}
+    return (
+        <View style={styles.mealCard}>
+            {/* Meal Summary Header */}
+            <TouchableOpacity
+                style={[styles.mealHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                onPress={onToggle}
+                activeOpacity={0.7}
+            >
+                <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
+                    <Text style={[styles.mealTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
+                        {meal.emoji || '🍽️'} {meal.nameAr || meal.name} ({meal.name})
+                    </Text>
+                    <Text style={styles.mealSubtitle}>
+                        • {optionsCount} {t.optionsAvailable}
+                    </Text>
+                </View>
+                <View style={[styles.mealActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                    <TouchableOpacity style={styles.mealActionButton} onPress={onEditName}>
+                        <Pencil size={horizontalScale(20)} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.mealActionButton} onPress={onDelete}>
+                        <Trash2 size={horizontalScale(20)} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                    {isExpanded ? (
+                        <ChevronUp size={horizontalScale(20)} color={colors.textSecondary} />
+                    ) : (
+                        <ChevronDown size={horizontalScale(20)} color={colors.textSecondary} />
+                    )}
+                </View>
+            </TouchableOpacity>
 
-                {/* Add Category Button */}
-                <TouchableOpacity style={[styles.addCategoryButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    <LibraryBig size={horizontalScale(20)} color={colors.textSecondary} />
-                    <Text style={styles.addCategoryText}>{t.addFoodCategory}</Text>
-                </TouchableOpacity>
-            </View>
-        )}
-    </View>
-);
+            {/* Expanded Content */}
+            {isExpanded && (
+                <View style={styles.mealContent}>
+                    {/* Categories */}
+                    {meal.categories.map(category => (
+                        <CategoryCard
+                            key={category.id}
+                            category={category}
+                            onEditName={() => onEditCategoryName(category.id)}
+                            onAddFood={() => onAddFood(category.id)}
+                            onRemoveFood={(itemId) => onRemoveFood(category.id, itemId)}
+                        />
+                    ))}
+
+                    {/* Add Category Button */}
+                    <TouchableOpacity
+                        style={[styles.addCategoryButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                        onPress={onAddCategory}
+                    >
+                        <LibraryBig size={horizontalScale(20)} color={colors.textSecondary} />
+                        <Text style={styles.addCategoryText}>{t.addFoodCategory}</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
+    );
+};
 
 // ============ MAIN COMPONENT ============
 export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
@@ -179,7 +352,7 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
     const { updateDietPlan, isLoading: isSaving } = usePlanMutations();
     const insets = useSafeAreaInsets();
 
-    // Form state - initialized from plan data
+    // ===== FORM STATE =====
     const [name, setName] = useState('');
     const [targetCalories, setTargetCalories] = useState('');
     const [description, setDescription] = useState('');
@@ -187,59 +360,262 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
     const [basicInfoOpen, setBasicInfoOpen] = useState(true);
     const [expandedMeals, setExpandedMeals] = useState<string[]>([]);
 
-    // Initialize form state when plan data loads
+    // ===== LOCAL MEALS STATE (editable) =====
+    const [localMeals, setLocalMeals] = useState<MealData[]>([]);
+
+    // ===== MODAL STATES =====
+    const [editMealModal, setEditMealModal] = useState<{
+        visible: boolean;
+        mealId: string;
+        nameAr: string;
+        nameEn: string;
+    } | null>(null);
+
+    const [editCategoryModal, setEditCategoryModal] = useState<{
+        visible: boolean;
+        mealId: string;
+        categoryId: string;
+        nameAr: string;
+        nameEn: string;
+    } | null>(null);
+
+    const [addFoodModal, setAddFoodModal] = useState<{
+        visible: boolean;
+        mealId: string;
+        categoryId: string;
+        value: string;
+    } | null>(null);
+
+    // ===== INITIALIZE FROM PLAN DATA =====
     useEffect(() => {
         if (plan) {
             setName(plan.name || '');
             setTargetCalories(plan.targetCalories?.toString() || '');
             setDescription(plan.description || '');
-            // Count meals from plan data
+
+            // Initialize localMeals from plan data
+            let rawMeals: MealData[] = [];
+
             if (plan.format === 'general' && plan.meals) {
-                setMealsPerDay(plan.meals.length);
-                setExpandedMeals(plan.meals.length > 0 ? [plan.meals[0].id] : []);
+                rawMeals = plan.meals.map(meal => ({
+                    id: meal.id,
+                    emoji: meal.emoji,
+                    name: meal.name,
+                    nameAr: meal.nameAr,
+                    time: meal.time,
+                    note: meal.note,
+                    noteAr: meal.noteAr,
+                    categories: meal.categories.map(cat => ({
+                        id: cat.id,
+                        emoji: cat.emoji,
+                        name: cat.name,
+                        nameAr: cat.nameAr,
+                        options: cat.options.map(opt => ({
+                            id: opt.id,
+                            text: opt.text,
+                            textEn: opt.textEn,
+                        })),
+                    })),
+                }));
             } else if (plan.format === 'daily' && plan.dailyMeals) {
-                // Get meals from first day
+                // Use first day's meals for editing
                 const firstDay = Object.keys(plan.dailyMeals)[0];
-                const dayMeals = firstDay ? plan.dailyMeals[firstDay as keyof typeof plan.dailyMeals]?.meals : [];
-                setMealsPerDay(dayMeals?.length || 3);
+                const dayData = firstDay ? plan.dailyMeals[firstDay as keyof typeof plan.dailyMeals] : null;
+                if (dayData?.meals) {
+                    rawMeals = dayData.meals.map(meal => ({
+                        id: meal.id,
+                        emoji: meal.emoji,
+                        name: meal.name,
+                        nameAr: meal.nameAr,
+                        time: meal.time,
+                        note: meal.note,
+                        noteAr: meal.noteAr,
+                        categories: meal.categories.map(cat => ({
+                            id: cat.id,
+                            emoji: cat.emoji,
+                            name: cat.name,
+                            nameAr: cat.nameAr,
+                            options: cat.options.map(opt => ({
+                                id: opt.id,
+                                text: opt.text,
+                                textEn: opt.textEn,
+                            })),
+                        })),
+                    }));
+                }
             }
+
+            setLocalMeals(rawMeals);
+            setMealsPerDay(rawMeals.length || 3);
+            setExpandedMeals(rawMeals.length > 0 ? [rawMeals[0].id] : []);
         }
     }, [plan]);
 
-    // Convert plan meals to UI format
-    const mealsForUI: Meal[] = React.useMemo(() => {
-        if (!plan) return [];
+    // ===== MEAL CRUD HANDLERS =====
 
-        let rawMeals;
-        if (plan.format === 'general') {
-            rawMeals = plan.meals;
-        } else if (plan.format === 'daily') {
-            // Use first day's meals for editing
-            const firstDay = Object.keys(plan.dailyMeals || {})[0];
-            rawMeals = firstDay ? plan.dailyMeals?.[firstDay as keyof typeof plan.dailyMeals]?.meals : [];
+    // Delete a meal
+    const handleDeleteMeal = useCallback((mealId: string) => {
+        const meal = localMeals.find(m => m.id === mealId);
+        const mealName = meal?.nameAr || meal?.name || 'Meal';
+
+        Alert.alert(
+            t.deleteMeal,
+            `${t.deleteMealConfirm} "${mealName}"?`,
+            [
+                { text: t.cancel, style: 'cancel' },
+                {
+                    text: t.delete,
+                    style: 'destructive',
+                    onPress: () => {
+                        setLocalMeals(prev => prev.filter(m => m.id !== mealId));
+                        setExpandedMeals(prev => prev.filter(id => id !== mealId));
+                    },
+                },
+            ]
+        );
+    }, [localMeals]);
+
+    // Open edit meal name modal
+    const handleOpenEditMealModal = useCallback((mealId: string) => {
+        const meal = localMeals.find(m => m.id === mealId);
+        if (meal) {
+            setEditMealModal({
+                visible: true,
+                mealId,
+                nameAr: meal.nameAr || '',
+                nameEn: meal.name,
+            });
         }
+    }, [localMeals]);
 
-        if (!rawMeals || rawMeals.length === 0) return [];
+    // Confirm edit meal name
+    const handleConfirmEditMeal = useCallback(() => {
+        if (!editMealModal) return;
 
-        return rawMeals.map((meal) => ({
-            id: meal.id,
-            emoji: meal.emoji || '🍽️',
-            nameAr: meal.nameAr || meal.name,
-            nameEn: meal.name,
-            optionsCount: meal.categories.reduce((sum, cat) => sum + cat.options.length, 0),
-            categories: meal.categories.map((cat) => ({
-                id: `${meal.id}-${cat.name}`,
-                emoji: cat.emoji || '📋',
-                nameAr: cat.nameAr || cat.name,
-                nameEn: cat.name,
-                items: cat.options.map((opt, idx) => ({
-                    id: `${meal.id}-${cat.name}-${idx}`,
-                    nameAr: opt.text,
-                    nameEn: opt.text,
-                })),
-            })),
-        }));
-    }, [plan]);
+        setLocalMeals(prev =>
+            prev.map(meal =>
+                meal.id === editMealModal.mealId
+                    ? { ...meal, name: editMealModal.nameEn, nameAr: editMealModal.nameAr }
+                    : meal
+            )
+        );
+        setEditMealModal(null);
+    }, [editMealModal]);
+
+    // Add a new category to a meal
+    const handleAddCategory = useCallback((mealId: string) => {
+        const newCategory: MealCategoryType = {
+            id: generateId(),
+            emoji: '📋',
+            name: 'New Category',
+            nameAr: 'فئة جديدة',
+            options: [],
+        };
+
+        setLocalMeals(prev =>
+            prev.map(meal =>
+                meal.id === mealId
+                    ? { ...meal, categories: [...meal.categories, newCategory] }
+                    : meal
+            )
+        );
+    }, []);
+
+    // ===== CATEGORY CRUD HANDLERS =====
+
+    // Open edit category name modal
+    const handleOpenEditCategoryModal = useCallback((mealId: string, categoryId: string) => {
+        const meal = localMeals.find(m => m.id === mealId);
+        const category = meal?.categories.find(c => c.id === categoryId);
+        if (category) {
+            setEditCategoryModal({
+                visible: true,
+                mealId,
+                categoryId,
+                nameAr: category.nameAr || '',
+                nameEn: category.name,
+            });
+        }
+    }, [localMeals]);
+
+    // Confirm edit category name
+    const handleConfirmEditCategory = useCallback(() => {
+        if (!editCategoryModal) return;
+
+        setLocalMeals(prev =>
+            prev.map(meal =>
+                meal.id === editCategoryModal.mealId
+                    ? {
+                        ...meal,
+                        categories: meal.categories.map(cat =>
+                            cat.id === editCategoryModal.categoryId
+                                ? { ...cat, name: editCategoryModal.nameEn, nameAr: editCategoryModal.nameAr }
+                                : cat
+                        ),
+                    }
+                    : meal
+            )
+        );
+        setEditCategoryModal(null);
+    }, [editCategoryModal]);
+
+    // ===== FOOD ITEM CRUD HANDLERS =====
+
+    // Open add food modal
+    const handleOpenAddFoodModal = useCallback((mealId: string, categoryId: string) => {
+        setAddFoodModal({
+            visible: true,
+            mealId,
+            categoryId,
+            value: '',
+        });
+    }, []);
+
+    // Confirm add food item
+    const handleConfirmAddFood = useCallback(() => {
+        if (!addFoodModal || !addFoodModal.value.trim()) return;
+
+        const newItem: MealOption = {
+            id: generateId(),
+            text: addFoodModal.value.trim(),
+        };
+
+        setLocalMeals(prev =>
+            prev.map(meal =>
+                meal.id === addFoodModal.mealId
+                    ? {
+                        ...meal,
+                        categories: meal.categories.map(cat =>
+                            cat.id === addFoodModal.categoryId
+                                ? { ...cat, options: [...cat.options, newItem] }
+                                : cat
+                        ),
+                    }
+                    : meal
+            )
+        );
+        setAddFoodModal(null);
+    }, [addFoodModal]);
+
+    // Remove food item
+    const handleRemoveFoodItem = useCallback((mealId: string, categoryId: string, itemId: string) => {
+        setLocalMeals(prev =>
+            prev.map(meal =>
+                meal.id === mealId
+                    ? {
+                        ...meal,
+                        categories: meal.categories.map(cat =>
+                            cat.id === categoryId
+                                ? { ...cat, options: cat.options.filter(opt => opt.id !== itemId) }
+                                : cat
+                        ),
+                    }
+                    : meal
+            )
+        );
+    }, []);
+
+    // ===== UI HANDLERS =====
 
     const BackArrow = () => isRTL
         ? <ArrowLeft size={horizontalScale(24)} color={colors.textPrimary} />
@@ -254,13 +630,14 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
     };
 
     const handleExpandAll = () => {
-        if (expandedMeals.length === mealsForUI.length) {
+        if (expandedMeals.length === localMeals.length) {
             setExpandedMeals([]);
         } else {
-            setExpandedMeals(mealsForUI.map(m => m.id));
+            setExpandedMeals(localMeals.map(m => m.id));
         }
     };
 
+    // ===== SAVE HANDLER =====
     const handleSave = async () => {
         try {
             await updateDietPlan({
@@ -268,6 +645,7 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
                 name: name.trim(),
                 description: description.trim() || undefined,
                 targetCalories: targetCalories ? parseInt(targetCalories, 10) : undefined,
+                meals: localMeals, // Send full meals array
             });
             onSave?.();
         } catch (error) {
@@ -444,18 +822,24 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
 
                     {/* Meals */}
                     <View style={styles.mealsList}>
-                        {mealsForUI.length > 0 ? (
-                            mealsForUI.map(meal => (
+                        {localMeals.length > 0 ? (
+                            localMeals.map(meal => (
                                 <MealCard
                                     key={meal.id}
                                     meal={meal}
                                     isExpanded={expandedMeals.includes(meal.id)}
                                     onToggle={() => toggleMealExpansion(meal.id)}
+                                    onDelete={() => handleDeleteMeal(meal.id)}
+                                    onEditName={() => handleOpenEditMealModal(meal.id)}
+                                    onAddCategory={() => handleAddCategory(meal.id)}
+                                    onEditCategoryName={(categoryId) => handleOpenEditCategoryModal(meal.id, categoryId)}
+                                    onAddFood={(categoryId) => handleOpenAddFoodModal(meal.id, categoryId)}
+                                    onRemoveFood={(categoryId, itemId) => handleRemoveFoodItem(meal.id, categoryId, itemId)}
                                 />
                             ))
                         ) : (
                             <View style={styles.emptyMeals}>
-                                <Text style={styles.emptyMealsText}>No meals configured</Text>
+                                <Text style={styles.emptyMealsText}>{t.noMeals}</Text>
                             </View>
                         )}
                     </View>
@@ -464,6 +848,45 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
                 {/* Bottom padding */}
                 <View style={{ height: verticalScale(24) }} />
             </ScrollView>
+
+            {/* Edit Meal Modal */}
+            {editMealModal && (
+                <EditModal
+                    visible={editMealModal.visible}
+                    title={t.editMealName}
+                    nameAr={editMealModal.nameAr}
+                    nameEn={editMealModal.nameEn}
+                    onChangeNameAr={(text) => setEditMealModal(prev => prev ? { ...prev, nameAr: text } : null)}
+                    onChangeNameEn={(text) => setEditMealModal(prev => prev ? { ...prev, nameEn: text } : null)}
+                    onCancel={() => setEditMealModal(null)}
+                    onConfirm={handleConfirmEditMeal}
+                />
+            )}
+
+            {/* Edit Category Modal */}
+            {editCategoryModal && (
+                <EditModal
+                    visible={editCategoryModal.visible}
+                    title={t.editCategoryName}
+                    nameAr={editCategoryModal.nameAr}
+                    nameEn={editCategoryModal.nameEn}
+                    onChangeNameAr={(text) => setEditCategoryModal(prev => prev ? { ...prev, nameAr: text } : null)}
+                    onChangeNameEn={(text) => setEditCategoryModal(prev => prev ? { ...prev, nameEn: text } : null)}
+                    onCancel={() => setEditCategoryModal(null)}
+                    onConfirm={handleConfirmEditCategory}
+                />
+            )}
+
+            {/* Add Food Modal */}
+            {addFoodModal && (
+                <AddFoodModal
+                    visible={addFoodModal.visible}
+                    value={addFoodModal.value}
+                    onChangeValue={(text) => setAddFoodModal(prev => prev ? { ...prev, value: text } : null)}
+                    onCancel={() => setAddFoodModal(null)}
+                    onConfirm={handleConfirmAddFood}
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -697,6 +1120,8 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(16),
         fontWeight: '700',
         color: colors.textPrimary,
+        width: horizontalScale(200),
+        overflow: 'hidden',
     },
     mealSubtitle: {
         fontSize: ScaleFontSize(12),
@@ -798,12 +1223,85 @@ const styles = StyleSheet.create({
     emptyMeals: {
         backgroundColor: colors.bgPrimary,
         borderRadius: horizontalScale(12),
-        padding: horizontalScale(32),
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: horizontalScale(24),
         alignItems: 'center',
         justifyContent: 'center',
     },
     emptyMealsText: {
         fontSize: ScaleFontSize(14),
         color: colors.textSecondary,
+    },
+    // Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: horizontalScale(20),
+    },
+    modalContainer: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: horizontalScale(16),
+        padding: horizontalScale(20),
+        width: '100%',
+        maxWidth: horizontalScale(340),
+        gap: verticalScale(16),
+    },
+    modalTitle: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '700',
+        color: colors.textPrimary,
+        textAlign: 'center',
+    },
+    modalInputGroup: {
+        gap: verticalScale(6),
+    },
+    modalInputLabel: {
+        fontSize: ScaleFontSize(13),
+        fontWeight: '500',
+        color: colors.textSecondary,
+    },
+    modalInput: {
+        height: verticalScale(44),
+        backgroundColor: colors.bgSecondary,
+        borderRadius: horizontalScale(8),
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: horizontalScale(12),
+        fontSize: ScaleFontSize(14),
+        color: colors.textPrimary,
+    },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: horizontalScale(12),
+        marginTop: verticalScale(8),
+    },
+    modalCancelButton: {
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(10),
+        borderRadius: horizontalScale(8),
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    modalCancelText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '600',
+        color: colors.textSecondary,
+    },
+    modalConfirmButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: horizontalScale(6),
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(10),
+        borderRadius: horizontalScale(8),
+    },
+    modalConfirmText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
 });

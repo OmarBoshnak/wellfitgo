@@ -314,6 +314,30 @@ export const createDietPlan = mutation({
 });
 
 /**
+ * Meal structure validator for updateDietPlan
+ */
+const mealValidator = v.object({
+    id: v.string(),
+    emoji: v.optional(v.string()),
+    name: v.string(),
+    nameAr: v.optional(v.string()),
+    time: v.optional(v.string()),
+    note: v.optional(v.string()),
+    noteAr: v.optional(v.string()),
+    categories: v.array(v.object({
+        id: v.string(),
+        emoji: v.optional(v.string()),
+        name: v.string(),
+        nameAr: v.optional(v.string()),
+        options: v.array(v.object({
+            id: v.string(),
+            text: v.string(),
+            textEn: v.optional(v.string()),
+        })),
+    })),
+});
+
+/**
  * Update an existing diet plan
  */
 export const updateDietPlan = mutation({
@@ -327,6 +351,8 @@ export const updateDietPlan = mutation({
         targetCalories: v.optional(v.number()),
         tags: v.optional(v.array(v.string())),
         isActive: v.optional(v.boolean()),
+        // Full meals array for granular meal editing
+        meals: v.optional(v.array(mealValidator)),
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
@@ -345,6 +371,7 @@ export const updateDietPlan = mutation({
         if (updates.targetCalories !== undefined) patchData.targetCalories = updates.targetCalories;
         if (updates.tags !== undefined) patchData.tags = updates.tags;
         if (updates.isActive !== undefined) patchData.isActive = updates.isActive;
+        if (updates.meals !== undefined) patchData.meals = updates.meals;
 
         await ctx.db.patch(id, patchData);
 
@@ -447,3 +474,159 @@ export const updateWeeklyPlan = mutation({
         return id;
     },
 });
+
+// ============ CLIENT ASSIGNMENT ============
+
+/**
+ * Get all clients assigned to the current coach
+ * Used for the "Assign to Client" modal
+ */
+export const getMyClients = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) return [];
+
+        // Only coaches can fetch their clients
+        if (user.role !== "coach" && user.role !== "admin") {
+            return [];
+        }
+
+        // Fetch clients assigned to this coach using index
+        const clients = await ctx.db
+            .query("users")
+            .withIndex("by_assigned_coach", (q) => q.eq("assignedCoachId", user._id))
+            .collect();
+
+        // Filter to only clients (double-check role)
+        const validClients = clients.filter((c) => c.role === "client");
+
+        // Check for active weekly plans for each client
+        const clientsWithPlanStatus = await Promise.all(
+            validClients.map(async (client) => {
+                // Check if client has an active weekly plan
+                const activePlan = await ctx.db
+                    .query("weeklyMealPlans")
+                    .withIndex("by_client", (q) => q.eq("clientId", client._id))
+                    .filter((q) => q.eq(q.field("status"), "active"))
+                    .first();
+
+                return {
+                    id: client._id,
+                    firstName: client.firstName,
+                    lastName: client.lastName || "",
+                    avatarUrl: client.avatarUrl,
+                    hasActivePlan: !!activePlan,
+                };
+            })
+        );
+
+        return clientsWithPlanStatus;
+    },
+});
+
+/**
+ * Assign a diet plan to one or more clients
+ * Creates weeklyMealPlans records for each client
+ */
+export const assignPlanToClients = mutation({
+    args: {
+        dietPlanId: v.id("dietPlans"),
+        clientIds: v.array(v.id("users")),
+        startDate: v.string(), // ISO date string "2025-12-27"
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) throw new Error("Unauthorized");
+
+        // Verify the diet plan exists
+        const dietPlan = await ctx.db.get(args.dietPlanId);
+        if (!dietPlan) throw new Error("Diet plan not found");
+
+        const now = Date.now();
+        const startDate = new Date(args.startDate);
+
+        // Calculate week end date (7 days after start)
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6);
+
+        // Calculate week number
+        const firstDayOfYear = new Date(startDate.getFullYear(), 0, 1);
+        const pastDaysOfYear = (startDate.getTime() - firstDayOfYear.getTime()) / 86400000;
+        const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+
+        let successCount = 0;
+        const errors: string[] = [];
+
+        for (const clientId of args.clientIds) {
+            try {
+                // Validate client ownership - must be assigned to this coach
+                const client = await ctx.db.get(clientId);
+                if (!client) {
+                    errors.push(`Client ${clientId} not found`);
+                    continue;
+                }
+
+                if (client.role !== "client") {
+                    errors.push(`User ${clientId} is not a client`);
+                    continue;
+                }
+
+                if (client.assignedCoachId !== user._id) {
+                    errors.push(`Client ${clientId} is not assigned to you`);
+                    continue;
+                }
+
+                // Archive any existing active weekly plans for this client
+                const existingActivePlans = await ctx.db
+                    .query("weeklyMealPlans")
+                    .withIndex("by_client", (q) => q.eq("clientId", clientId))
+                    .filter((q) => q.eq(q.field("status"), "active"))
+                    .collect();
+
+                for (const existingPlan of existingActivePlans) {
+                    await ctx.db.patch(existingPlan._id, {
+                        status: "archived",
+                        updatedAt: now,
+                    });
+                }
+
+                // Create new weekly meal plan
+                await ctx.db.insert("weeklyMealPlans", {
+                    clientId,
+                    coachId: user._id,
+                    dietPlanId: args.dietPlanId,
+                    weekStartDate: args.startDate,
+                    weekEndDate: endDate.toISOString().split("T")[0],
+                    weekNumber,
+                    year: startDate.getFullYear(),
+                    status: "active",
+                    isTemplate: false,
+                    totalCalories: dietPlan.targetCalories,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+
+                successCount++;
+            } catch (error) {
+                errors.push(`Failed to assign to client ${clientId}: ${error}`);
+            }
+        }
+
+        // Increment usage count on the diet plan
+        if (successCount > 0) {
+            await ctx.db.patch(args.dietPlanId, {
+                usageCount: (dietPlan.usageCount || 0) + successCount,
+                updatedAt: now,
+            });
+        }
+
+        return {
+            success: successCount > 0,
+            successCount,
+            totalClients: args.clientIds.length,
+            errors: errors.length > 0 ? errors : undefined,
+        };
+    },
+});
+

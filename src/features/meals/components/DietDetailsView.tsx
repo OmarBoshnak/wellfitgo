@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, ArrowRight, Share2, MoreVertical, ChevronRight, ChevronDown, Users, Calendar, UserPlus } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/constants/Themes';
@@ -8,6 +8,9 @@ import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/
 import { useDietDetails } from '../hooks/useDietDetails';
 import { Id } from '@/convex/_generated/dataModel';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import AssignClientModal from './AssignClientModal';
 
 // ============ TRANSLATIONS ============
 const t = {
@@ -22,6 +25,8 @@ const t = {
     loading: isRTL ? 'جاري التحميل...' : 'Loading...',
     notFound: isRTL ? 'الخطة غير موجودة' : 'Plan not found',
     noMeals: isRTL ? 'لا توجد وجبات' : 'No meals for this day',
+    assignSuccess: isRTL ? 'تم التعيين بنجاح!' : 'Assignment successful!',
+    assignFailed: isRTL ? 'فشل التعيين' : 'Assignment failed',
 };
 
 // Day keys for daily format
@@ -70,10 +75,53 @@ interface Props {
 export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
     const { plan, isLoading } = useDietDetails(dietId);
     const insets = useSafeAreaInsets();
+    const assignMutation = useMutation(api.plans.assignPlanToClients);
 
     // State for daily format
     const [selectedDay, setSelectedDay] = useState<WeekDay>(getCurrentWeekday());
     const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
+
+    // State for assign modal
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [isAssigning, setIsAssigning] = useState(false);
+
+    // Handle opening the assign modal
+    const handleOpenAssignModal = useCallback(() => {
+        setShowAssignModal(true);
+    }, []);
+
+    // Handle assigning to clients
+    const handleAssignToClients = useCallback(async (clientIds: Id<"users">[]) => {
+        if (clientIds.length === 0) return;
+
+        setIsAssigning(true);
+        try {
+            // Get today's date as the start date
+            const startDate = new Date().toISOString().split('T')[0];
+
+            const result = await assignMutation({
+                dietPlanId: dietId,
+                clientIds,
+                startDate,
+            });
+
+            setShowAssignModal(false);
+
+            if (result.success) {
+                Alert.alert(
+                    t.assignSuccess,
+                    `${result.successCount}/${result.totalClients} ${t.clients}`,
+                    [{ text: 'OK', onPress: onAssign }]
+                );
+            } else {
+                Alert.alert(t.assignFailed, result.errors?.join('\n'));
+            }
+        } catch (error) {
+            Alert.alert(t.assignFailed, String(error));
+        } finally {
+            setIsAssigning(false);
+        }
+    }, [dietId, assignMutation, onAssign]);
 
     // ============ RESOLVE MEALS ============
     const mealsForUI = useMemo((): MealForUI[] => {
@@ -355,7 +403,7 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
             {/* Fixed Footer */}
             <View style={styles.footer}>
                 <View style={styles.footerGradient} />
-                <TouchableOpacity onPress={onAssign} activeOpacity={0.9} style={styles.assignButtonWrapper}>
+                <TouchableOpacity onPress={handleOpenAssignModal} activeOpacity={0.9} style={styles.assignButtonWrapper}>
                     <LinearGradient
                         colors={gradients.primary}
                         start={{ x: 0, y: 0 }}
@@ -367,6 +415,18 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
+
+            {/* Assign Client Modal */}
+            <AssignClientModal
+                visible={showAssignModal}
+                diet={{
+                    name: plan?.name,
+                    range: plan?.targetCalories ? `${plan.targetCalories} cal` : undefined,
+                }}
+                onClose={() => setShowAssignModal(false)}
+                onAssign={handleAssignToClients}
+                isAssigning={isAssigning}
+            />
         </SafeAreaView>
     );
 }

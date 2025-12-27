@@ -170,6 +170,7 @@ export default defineSchema({
     weeklyMealPlans: defineTable({
         clientId: v.id("users"),
         coachId: v.id("users"),
+        dietPlanId: v.optional(v.id("dietPlans")), // The diet plan template this is based on
         weekStartDate: v.string(), // ISO date string (e.g., "2025-12-08")
         weekEndDate: v.string(),
         weekNumber: v.number(), // Week of the year
@@ -194,7 +195,8 @@ export default defineSchema({
         .index("by_coach", ["coachId"])
         .index("by_client_week", ["clientId", "year", "weekNumber"])
         .index("by_status", ["status"])
-        .index("by_template", ["isTemplate", "coachId"]),
+        .index("by_template", ["isTemplate", "coachId"])
+        .index("by_diet_plan", ["dietPlanId"]),
 
     // ============ DAILY MEALS ============
     meals: defineTable({

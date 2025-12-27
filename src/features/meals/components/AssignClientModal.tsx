@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Image, Dimensions, Animated } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Image, Dimensions, Animated, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Check, ChevronDown, CheckCircle } from 'lucide-react-native';
+import { Search, Check, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,13 +35,19 @@ const t = {
     hasBeenAssigned: isRTL ? 'تم تعيينه لـ' : 'has been assigned to',
     done: isRTL ? 'تم' : 'Done',
     viewClient: isRTL ? 'عرض العميل' : 'View Client',
+    loading: isRTL ? 'جاري التحميل...' : 'Loading...',
+    noClients: isRTL ? 'لا يوجد عملاء' : 'No clients found',
+    hasActivePlan: isRTL ? 'لديه خطة نشطة' : 'Has active plan',
 };
 
-const MOCK_CLIENTS = [
-    { id: '1', name: isRTL ? 'فاطمة حسن' : 'Fatma Hassan', weight: '72 kg', target: '65 kg', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuATIQAR_u38WIwb7jTvQaiKDoOcyjf7Vy3rCY66DW3naAEIzxMbXa8NVtiDpNzhQUcwivIIizrYXz0Kdbd5T8rFr0wr2LREkzcOwrsb9TIBSpx4pXDEneMbAS6lHT0n7GPfU797E4tJ-VlU3JPoOZJtVlKJy0_CykdDFj63V7kHKkdEoriMxa07Eo_ixDHywiSxrRFqIc8OxNu6dUmM0uWcQt1Bvsyul6R_151tnMvQULNw-xlftR4Ll_2Z38oINuB9-UC4ShCRpPI', currentPlan: null },
-    { id: '2', name: isRTL ? 'عمر خالد' : 'Omar Khalid', weight: '90 kg', target: '82 kg', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCdN0zI4YrpupN32exhRBz_BucId2vZelIzG4YiUB8DNzYYslswtQKgcvD9FsS860RDMlsBGWLHBBx-jNHB7Fq74IlNMWeVzGY7HviqNmG3f6eRXlWWhvEyR702dBBgSDyOhOJQ3I34FP4EsMlUuAEhJCYoGJ5f2rgxfaFLna3GqnCkp7mfEWjJ23sq_4yxJ_-N9VphlvWcH5jd6jNQrDD4spB5-P_jxAZqO0fD4N2xgYe_S6kBGvgw7PDEIR-DugxO5LA7GNpiwVY', currentPlan: null },
-    { id: '3', name: isRTL ? 'أحمد علي' : 'Ahmed Ali', weight: '85 kg', target: '80 kg', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCYLKyn9Izjocsu49cZ2tBZtZFwaxbAcXWL2-TGv06cmZck7Om_-fZaIEclgYYGhlrJwIFoRc9COsAIF7hIxXN0AcCuJggZy_ltYMs2YfL8dXjHKJ6d_He5RWFuV3Q8WebAF-M4qngNsZ435C-xNLfcTASQGjTnkNGrH5qnTI0WXgQqKDVVUU0DmH3RY9q1nbFJmmDn67Kc1QPrFJ5JkMvT_wrQjpAuLtFxr-G8tFq_RgUpG_j5VItLJqhTbtNf_nY0qTvUKBVHcgY', currentPlan: 'Classic 1100-1200' },
-];
+// Client type from Convex query
+interface ConvexClient {
+    id: Id<"users">;
+    firstName: string;
+    lastName: string;
+    avatarUrl?: string;
+    hasActivePlan: boolean;
+}
 
 // Success green gradient
 const successGradient = ['#28af62', '#2cc56f'] as const;
@@ -50,23 +59,39 @@ interface Props {
         name?: string;
     };
     onClose: () => void;
-    onAssign: (selectedClients: string[]) => void;
-    onViewClient?: (clientId: string) => void;
+    onAssign: (selectedClients: Id<"users">[]) => void;
+    onViewClient?: (clientId: Id<"users">) => void;
+    isAssigning?: boolean;
 }
 
-export default function AssignClientModal({ visible, diet, onClose, onAssign, onViewClient }: Props) {
-    const [selectedClients, setSelectedClients] = useState<string[]>([]);
+export default function AssignClientModal({ visible, diet, onClose, onAssign, onViewClient, isAssigning = false }: Props) {
+    const [selectedClients, setSelectedClients] = useState<Id<"users">[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [notifyPush, setNotifyPush] = useState(true);
     const [sendEmail, setSendEmail] = useState(false);
     const [sendWhatsApp, setSendWhatsApp] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
-    const [assignedClients, setAssignedClients] = useState<typeof MOCK_CLIENTS>([]);
+    const [assignedClients, setAssignedClients] = useState<ConvexClient[]>([]);
     const scaleAnim = useState(new Animated.Value(0.8))[0];
     const opacityAnim = useState(new Animated.Value(0))[0];
 
-    const clientsWithoutPlan = MOCK_CLIENTS.filter(c => !c.currentPlan);
-    const clientsWithPlan = MOCK_CLIENTS.filter(c => c.currentPlan);
+    // Fetch real clients from Convex
+    const clients = useQuery(api.plans.getMyClients) ?? [];
+    const isLoading = clients === undefined;
+
+    // Filter clients based on search term
+    const filteredClients = useMemo(() => {
+        if (!searchTerm.trim()) return clients;
+        const query = searchTerm.toLowerCase();
+        return clients.filter((client) => {
+            const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
+            return fullName.includes(query);
+        });
+    }, [clients, searchTerm]);
+
+    // Split into clients with and without plans
+    const clientsWithoutPlan = useMemo(() => filteredClients.filter(c => !c.hasActivePlan), [filteredClients]);
+    const clientsWithPlan = useMemo(() => filteredClients.filter(c => c.hasActivePlan), [filteredClients]);
 
     useEffect(() => {
         if (showSuccess) {
@@ -89,15 +114,15 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
         }
     }, [showSuccess]);
 
-    const toggleClient = (clientId: string) => {
+    const toggleClient = (clientId: Id<"users">) => {
         setSelectedClients(prev =>
             prev.includes(clientId) ? prev.filter(id => id !== clientId) : [...prev, clientId]
         );
     };
 
     const handleAssign = () => {
-        // Get assigned client details
-        const assigned = MOCK_CLIENTS.filter(c => selectedClients.includes(c.id));
+        // Get assigned client details from real clients
+        const assigned = clients.filter(c => selectedClients.includes(c.id));
         setAssignedClients(assigned);
         setShowSuccess(true);
     };
@@ -138,8 +163,9 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
         </TouchableOpacity>
     );
 
-    const renderClientCard = (client: typeof MOCK_CLIENTS[0], hasExistingPlan: boolean) => {
+    const renderClientCard = (client: ConvexClient, hasExistingPlan: boolean) => {
         const isSelected = selectedClients.includes(client.id);
+        const fullName = `${client.firstName} ${client.lastName}`.trim();
 
         return (
             <TouchableOpacity
@@ -148,21 +174,27 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
                 onPress={() => toggleClient(client.id)}
                 activeOpacity={0.7}
             >
-                <Image
-                    source={{ uri: client.avatar }}
-                    style={[styles.avatar, !isSelected && hasExistingPlan && styles.avatarInactive]}
-                />
+                {client.avatarUrl ? (
+                    <Image
+                        source={{ uri: client.avatarUrl }}
+                        style={[styles.avatar, !isSelected && hasExistingPlan && styles.avatarInactive]}
+                    />
+                ) : (
+                    <View style={[styles.avatar, styles.avatarPlaceholder, !isSelected && hasExistingPlan && styles.avatarInactive]}>
+                        <Text style={styles.avatarPlaceholderText}>
+                            {client.firstName.charAt(0).toUpperCase()}
+                        </Text>
+                    </View>
+                )}
                 <View style={styles.clientInfo}>
                     <Text style={[styles.clientName, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {client.name}
-                    </Text>
-                    <Text style={[styles.clientWeight, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {client.weight} → {t.target}: {client.target}
+                        {fullName}
                     </Text>
                     {hasExistingPlan ? (
                         <View style={styles.planInfoRow}>
-                            <View style={styles.existingPlanBadge}>
-                                <Text style={styles.existingPlanText}>🟡 {client.currentPlan}</Text>
+                            <View style={[styles.activePlanBadge, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                                <AlertCircle size={horizontalScale(12)} color="#F59E0B" />
+                                <Text style={styles.activePlanBadgeText}>{t.hasActivePlan}</Text>
                             </View>
                             {isSelected && (
                                 <Text style={styles.replaceWarning}>⚠️ {t.willReplace}</Text>
@@ -246,7 +278,15 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
                                         { zIndex: 10 - index, marginLeft: index > 0 ? horizontalScale(-12) : 0 },
                                     ]}
                                 >
-                                    <Image source={{ uri: client.avatar }} style={styles.avatarGroupImage} />
+                                    {client.avatarUrl ? (
+                                        <Image source={{ uri: client.avatarUrl }} style={styles.avatarGroupImage} />
+                                    ) : (
+                                        <View style={[styles.avatarGroupImage, styles.avatarPlaceholder]}>
+                                            <Text style={styles.avatarPlaceholderText}>
+                                                {client.firstName.charAt(0).toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                             ))}
                             {assignedClients.length > 3 && (
@@ -569,6 +609,31 @@ const styles = StyleSheet.create({
     },
     replaceWarning: {
         fontSize: ScaleFontSize(10),
+        fontWeight: '500',
+        color: '#F59E0B',
+    },
+    avatarPlaceholder: {
+        backgroundColor: colors.bgSecondary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarPlaceholderText: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '600',
+        color: colors.primaryDark,
+    },
+    activePlanBadge: {
+        alignItems: 'center',
+        gap: horizontalScale(4),
+        backgroundColor: '#FFF7ED',
+        paddingHorizontal: horizontalScale(8),
+        paddingVertical: verticalScale(2),
+        borderRadius: horizontalScale(10),
+        borderWidth: 1,
+        borderColor: '#FFEDD5',
+    },
+    activePlanBadgeText: {
+        fontSize: ScaleFontSize(11),
         fontWeight: '500',
         color: '#F59E0B',
     },

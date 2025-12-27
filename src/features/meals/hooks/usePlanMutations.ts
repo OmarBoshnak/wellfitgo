@@ -36,6 +36,32 @@ export interface CreateDietPlanArgs {
     tags?: string[];
 }
 
+// Meal structure types for updating diet plans
+export interface MealOption {
+    id: string;
+    text: string;
+    textEn?: string;
+}
+
+export interface MealCategory {
+    id: string;
+    emoji?: string;
+    name: string;
+    nameAr?: string;
+    options: MealOption[];
+}
+
+export interface MealData {
+    id: string;
+    emoji?: string;
+    name: string;
+    nameAr?: string;
+    time?: string;
+    note?: string;
+    noteAr?: string;
+    categories: MealCategory[];
+}
+
 export interface UpdateDietPlanArgs {
     id: Id<"dietPlans">;
     name?: string;
@@ -46,6 +72,7 @@ export interface UpdateDietPlanArgs {
     targetCalories?: number;
     tags?: string[];
     isActive?: boolean;
+    meals?: MealData[];
 }
 
 export interface CreateWeeklyPlanArgs {

@@ -1,11 +1,23 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/src/core/constants/Themes';
 import { horizontalScale, verticalScale } from '@/src/core/utils/scaling';
 import { DietPlansList } from '@/src/features/meals';
 import type { DietPlan } from '@/src/features/meals';
+import { isRTL } from '@/src/core/constants/translations';
+import { useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
+import AssignClientModal from '@/src/features/meals/components/AssignClientModal';
+
+// ============ TRANSLATIONS ============
+const t = {
+    assignSuccess: isRTL ? 'تم التعيين بنجاح!' : 'Assignment successful!',
+    assignFailed: isRTL ? 'فشل التعيين' : 'Assignment failed',
+    clients: isRTL ? 'عملاء' : 'clients',
+};
 
 // ============ SCREEN COMPONENT ============
 export default function DietPlansScreen() {
@@ -27,15 +39,53 @@ export default function DietPlansScreen() {
         description: params.categoryDescription,
     };
 
+    // State for assign modal
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [selectedDiet, setSelectedDiet] = useState<DietPlan | null>(null);
+    const [isAssigning, setIsAssigning] = useState(false);
+
+    // Mutations
+    const assignMutation = useMutation(api.plans.assignPlanToClients);
+
     // ============ NAVIGATION HANDLERS ============
     const handleBack = () => {
         router.back();
     };
 
     const handleAssign = (diet: DietPlan) => {
-        // TODO: Open assign modal or navigate to assign screen
-        console.log('Assign diet:', diet);
+        setSelectedDiet(diet);
+        setShowAssignModal(true);
     };
+
+    const handleAssignToClients = useCallback(async (clientIds: Id<"users">[]) => {
+        if (clientIds.length === 0 || !selectedDiet) return;
+
+        setIsAssigning(true);
+        try {
+            const startDate = new Date().toISOString().split('T')[0];
+
+            const result = await assignMutation({
+                dietPlanId: selectedDiet.id as Id<"dietPlans">,
+                clientIds,
+                startDate,
+            });
+
+            setShowAssignModal(false);
+
+            if (result.success) {
+                Alert.alert(
+                    t.assignSuccess,
+                    `${result.successCount}/${result.totalClients} ${t.clients}`
+                );
+            } else {
+                Alert.alert(t.assignFailed, result.errors?.join('\n'));
+            }
+        } catch (error) {
+            Alert.alert(t.assignFailed, String(error));
+        } finally {
+            setIsAssigning(false);
+        }
+    }, [selectedDiet, assignMutation]);
 
     const handleViewDetails = (diet: DietPlan) => {
         router.push({
@@ -75,6 +125,18 @@ export default function DietPlansScreen() {
                     onEdit={handleEdit}
                 />
             </ScrollView>
+
+            {/* Assign Client Modal */}
+            <AssignClientModal
+                visible={showAssignModal}
+                diet={{
+                    name: selectedDiet?.name,
+                    range: selectedDiet?.targetCalories ? `${selectedDiet.targetCalories} cal` : undefined,
+                }}
+                onClose={() => setShowAssignModal(false)}
+                onAssign={handleAssignToClients}
+                isAssigning={isAssigning}
+            />
         </SafeAreaView>
     );
 }
@@ -93,3 +155,4 @@ const styles = StyleSheet.create({
         paddingBottom: verticalScale(24),
     },
 });
+
