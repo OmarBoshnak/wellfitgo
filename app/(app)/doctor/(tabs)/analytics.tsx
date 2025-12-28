@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     View,
     Text,
@@ -6,6 +6,7 @@ import {
     TouchableOpacity,
     StyleSheet,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -18,14 +19,22 @@ import {
     ChevronRight,
     ChevronLeft,
     ChevronDown,
+    BarChart3,
 } from 'lucide-react-native';
 import { colors } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import {
+    useDoctorAnalytics,
+    formatLastCheckIn,
+    calculateProgressPercentages,
+    type TimeRange,
+    type ClientStatus,
+} from '@/src/features/analytics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// Translations
+// ============ TRANSLATIONS ============
 const t = {
     title: isRTL ? 'الإحصائيات' : 'Analytics',
     performanceOverview: isRTL ? 'نظرة عامة على الأداء' : 'Your performance overview',
@@ -50,8 +59,6 @@ const t = {
     messages: isRTL ? 'الرسائل' : 'Messages',
     plans: isRTL ? 'الخطط' : 'Plans',
     checkIns: isRTL ? 'التسجيلات' : 'Check-ins',
-    weeklyWeightChanges: isRTL ? 'تغييرات الوزن الأسبوعية' : 'Weekly Weight Changes',
-    kg: isRTL ? 'كجم' : 'kg',
     checkInStatus: isRTL ? 'حالة تسجيل العملاء' : 'Client Check-in Status',
     client: isRTL ? 'العميل' : 'Client',
     lastCheckIn: isRTL ? 'آخر تسجيل' : 'Last Check-in',
@@ -60,60 +67,38 @@ const t = {
     today: isRTL ? 'اليوم' : 'Today',
     dayAgo: isRTL ? 'منذ يوم' : '1 day ago',
     daysAgo: isRTL ? 'أيام مضت' : 'days ago',
+    never: isRTL ? 'لم يسجل' : 'Never',
     onTime: isRTL ? 'في الوقت' : 'On time',
     overdue: isRTL ? 'متأخر' : 'Overdue',
     sendReminder: isRTL ? 'إرسال تذكير' : 'Send Reminder',
     viewProfile: isRTL ? 'عرض الملف' : 'View Profile',
+    loading: isRTL ? 'جاري التحميل...' : 'Loading...',
+    noClients: isRTL ? 'لا يوجد عملاء بعد' : 'No clients yet',
+    noClientsDesc: isRTL
+        ? 'ابدأ بإضافة عملاء لرؤية الإحصائيات'
+        : 'Add clients to see analytics',
+    noData: isRTL ? 'لا توجد بيانات' : 'No data',
 };
 
-// Days for chart
-const dayLabels = isRTL
-    ? ['إث', 'ث', 'أر', 'خ', 'ج', 'س', 'أح']
-    : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Day labels for chart (last 7 days dynamic)
+const getDayLabel = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const dayIndex = date.getDay();
+    const dayLabelsEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayLabelsAr = ['أح', 'إث', 'ث', 'أر', 'خ', 'ج', 'س'];
+    return isRTL ? dayLabelsAr[dayIndex] : dayLabelsEn[dayIndex];
+};
 
-type TimeFilterType = '7days' | '30days' | '3months';
-
-// Weekly Activity Data
-const weeklyActivity = [
-    { day: 'Mon', messages: 12, plans: 2, checkIns: 5 },
-    { day: 'Tue', messages: 15, plans: 1, checkIns: 7 },
-    { day: 'Wed', messages: 8, plans: 3, checkIns: 4 },
-    { day: 'Thu', messages: 18, plans: 2, checkIns: 6 },
-    { day: 'Fri', messages: 14, plans: 1, checkIns: 8 },
-    { day: 'Sat', messages: 6, plans: 0, checkIns: 3 },
-    { day: 'Sun', messages: 4, plans: 0, checkIns: 2 },
-];
-
-// Client Progress Data
-const clientProgress = [
-    { name: isRTL ? 'أحمد' : 'Ahmed', change: -0.9 },
-    { name: isRTL ? 'سارة' : 'Sara', change: -1.2 },
-    { name: isRTL ? 'كريم' : 'Karim', change: 0.5 },
-    { name: isRTL ? 'ليلى' : 'Layla', change: -0.3 },
-    { name: isRTL ? 'محمد' : 'Mohamed', change: -1.1 },
-    { name: isRTL ? 'فاطمة' : 'Fatma', change: -0.8 },
-    { name: isRTL ? 'علي' : 'Ali', change: -1.5 },
-    { name: isRTL ? 'نور' : 'Nour', change: -0.6 },
-];
-
-// Check-in Status Data
-const checkInStatus = [
-    { client: isRTL ? 'أحمد حسن' : 'Ahmed Hassan', lastCheckIn: t.today, status: 'on-time' as const },
-    { client: isRTL ? 'سارة محمد' : 'Sara Mohamed', lastCheckIn: t.dayAgo, status: 'on-time' as const },
-    { client: isRTL ? 'ليلى أحمد' : 'Layla Ahmed', lastCheckIn: `5 ${t.daysAgo}`, status: 'overdue' as const },
-    { client: isRTL ? 'محمد علي' : 'Mohamed Ali', lastCheckIn: t.today, status: 'on-time' as const },
-    { client: isRTL ? 'كريم علي' : 'Karim Ali', lastCheckIn: `10 ${t.daysAgo}`, status: 'at-risk' as const },
-];
-
-const maxMessages = Math.max(...weeklyActivity.map(d => d.messages));
-const maxChange = Math.max(...clientProgress.map(c => Math.abs(c.change)));
-
+// ============ MAIN COMPONENT ============
 export default function AnalyticsScreen() {
     const insets = useSafeAreaInsets();
-    const [timeFilter, setTimeFilter] = useState<TimeFilterType>('7days');
+    const [timeFilter, setTimeFilter] = useState<TimeRange>('7days');
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
 
-    const timeFilters: { key: TimeFilterType; label: string }[] = [
+    // Fetch analytics data from Convex
+    const { data, isLoading, isEmpty } = useDoctorAnalytics(timeFilter);
+
+    const timeFilters: { key: TimeRange; label: string }[] = [
         { key: '7days', label: t.last7Days },
         { key: '30days', label: t.last30Days },
         { key: '3months', label: t.last3Months },
@@ -121,32 +106,109 @@ export default function AnalyticsScreen() {
 
     const currentFilterLabel = timeFilters.find(f => f.key === timeFilter)?.label || t.last7Days;
 
-    // Progress distribution data
-    const progressData = {
-        onTrack: { percentage: 60, count: 23, color: '#10B981' },
-        needsSupport: { percentage: 25, count: 10, color: '#F59E0B' },
-        atRisk: { percentage: 15, count: 5, color: '#EF4444' },
-    };
+    // Calculate progress distribution with percentages
+    const progressData = useMemo(() => {
+        if (!data) return null;
+        const buckets = calculateProgressPercentages(data.progressBuckets);
+        return {
+            onTrack: { percentage: buckets.onTrack.percentage, count: buckets.onTrack.count, color: '#10B981' },
+            needsSupport: { percentage: buckets.needsSupport.percentage, count: buckets.needsSupport.count, color: '#F59E0B' },
+            atRisk: { percentage: buckets.atRisk.percentage, count: buckets.atRisk.count, color: '#EF4444' },
+            total: buckets.total,
+        };
+    }, [data]);
 
-    const totalClients = 38;
+    // Chart calculations
     const chartSize = horizontalScale(160);
     const strokeWidth = horizontalScale(16);
     const radius = (chartSize - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
 
-    const DirectionalChevron = () => isRTL
-        ? <ChevronLeft size={horizontalScale(18)} color={colors.success} />
-        : <ChevronRight size={horizontalScale(18)} color={colors.success} />;
+    // Calculate bar chart max values
+    const maxMessages = useMemo(() => {
+        if (!data?.dailyActivity.length) return 1;
+        return Math.max(...data.dailyActivity.map(d => d.messages), 1);
+    }, [data]);
 
-    // Calculate total activity
-    const totalMessages = weeklyActivity.reduce((sum, d) => sum + d.messages, 0);
-    const totalPlans = weeklyActivity.reduce((sum, d) => sum + d.plans, 0);
-    const totalCheckIns = weeklyActivity.reduce((sum, d) => sum + d.checkIns, 0);
+    const maxPlans = useMemo(() => {
+        if (!data?.dailyActivity.length) return 1;
+        return Math.max(...data.dailyActivity.map(d => d.plans), 1);
+    }, [data]);
 
+    const maxCheckIns = useMemo(() => {
+        if (!data?.dailyActivity.length) return 1;
+        return Math.max(...data.dailyActivity.map(d => d.checkIns), 1);
+    }, [data]);
+
+    // Calculate totals for daily activity
+    const activityTotals = useMemo(() => {
+        if (!data?.dailyActivity.length) return { messages: 0, plans: 0, checkIns: 0 };
+        return data.dailyActivity.reduce(
+            (acc, day) => ({
+                messages: acc.messages + day.messages,
+                plans: acc.plans + day.plans,
+                checkIns: acc.checkIns + day.checkIns,
+            }),
+            { messages: 0, plans: 0, checkIns: 0 }
+        );
+    }, [data]);
+
+    // Format check-in time helper
+    const lastCheckInTranslations = {
+        today: t.today,
+        dayAgo: t.dayAgo,
+        daysAgo: t.daysAgo,
+        never: t.never,
+    };
+
+    // Map client status to display
+    const getStatusDisplay = (status: ClientStatus): { emoji: string; style: object } => {
+        switch (status) {
+            case 'on_track':
+                return { emoji: '✅', style: styles.statusOnTime };
+            case 'needs_support':
+                return { emoji: '⚠️', style: styles.statusOverdue };
+            case 'at_risk':
+                return { emoji: '🔴', style: styles.statusAtRisk };
+        }
+    };
+
+    // ============ LOADING STATE ============
+    if (isLoading) {
+        return (
+            <SafeAreaView edges={['left', 'right']} style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top }]}>
+                    <Text style={[styles.title, { textAlign: isRTL ? 'left' : 'right' }]}>{t.title}</Text>
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.success} />
+                    <Text style={styles.loadingText}>{t.loading}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // ============ EMPTY STATE ============
+    if (isEmpty || !data) {
+        return (
+            <SafeAreaView edges={['left', 'right']} style={styles.container}>
+                <View style={[styles.header, { paddingTop: insets.top }]}>
+                    <Text style={[styles.title, { textAlign: isRTL ? 'left' : 'right' }]}>{t.title}</Text>
+                </View>
+                <View style={styles.emptyContainer}>
+                    <BarChart3 size={horizontalScale(64)} color={colors.textSecondary} />
+                    <Text style={styles.emptyTitle}>{t.noClients}</Text>
+                    <Text style={styles.emptyDescription}>{t.noClientsDesc}</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // ============ MAIN RENDER ============
     return (
-        <SafeAreaView edges={['top']} style={styles.container}>
+        <SafeAreaView edges={['left', 'right']} style={styles.container}>
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top > 0 ? 0 : verticalScale(16) }]}>
+            <View style={[styles.header, { paddingTop: insets.top }]}>
                 <View style={[styles.headerTop, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <View style={styles.headerTitleContainer}>
                         <Text style={[styles.title, { textAlign: isRTL ? 'right' : 'left' }]}>{t.title}</Text>
@@ -204,287 +266,256 @@ export default function AnalyticsScreen() {
                         icon={<Users size={horizontalScale(22)} color="#10B981" />}
                         iconBg="#10B98120"
                         label={t.activeClients}
-                        value="38"
-                        trend={`+3 ${t.vsLastPeriod}`}
+                        value={String(data.overview.activeClients)}
+                        trend={null}
                         trendUp={true}
                     />
                     <StatCard
                         icon={<TrendingDown size={horizontalScale(22)} color="#3B82F6" />}
                         iconBg="#3B82F620"
                         label={t.avgProgress}
-                        value={`0.9 ${t.kgWeek}`}
-                        trend="+12%"
-                        trendUp={true}
+                        value={data.overview.avgProgress !== null
+                            ? `${Math.abs(data.overview.avgProgress).toFixed(1)} ${t.kgWeek}`
+                            : t.noData
+                        }
+                        trend={null}
+                        trendUp={data.overview.avgProgress !== null && data.overview.avgProgress < 0}
                     />
                     <StatCard
                         icon={<MessageSquare size={horizontalScale(22)} color="#8B5CF6" />}
                         iconBg="#8B5CF620"
                         label={t.checkInRate}
-                        value="85%"
-                        trend="-2%"
-                        trendUp={false}
+                        value={`${data.overview.checkInRate}%`}
+                        trend={null}
+                        trendUp={data.overview.checkInRate >= 80}
                     />
                     <StatCard
                         icon={<Clock size={horizontalScale(22)} color="#F59E0B" />}
                         iconBg="#F59E0B20"
                         label={t.responseTime}
-                        value={`2.3 ${t.hours}`}
-                        trend={t.slower}
+                        value={data.overview.responseTime !== null
+                            ? `${data.overview.responseTime.toFixed(1)} ${t.hours}`
+                            : t.noData
+                        }
+                        trend={null}
                         trendUp={false}
                     />
                 </View>
 
                 {/* Progress Distribution */}
-                <View style={styles.chartCard}>
-                    <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {t.progressDistribution}
-                    </Text>
+                {progressData && progressData.total > 0 && (
+                    <View style={styles.chartCard}>
+                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            {t.progressDistribution}
+                        </Text>
 
-                    <View style={styles.donutContainer}>
-                        <View style={styles.donutChart}>
-                            <Svg width={chartSize} height={chartSize}>
-                                {/* On Track - 60% */}
-                                <Circle
-                                    cx={chartSize / 2}
-                                    cy={chartSize / 2}
-                                    r={radius}
-                                    fill="transparent"
-                                    stroke={progressData.onTrack.color}
-                                    strokeWidth={strokeWidth}
-                                    strokeDasharray={`${(progressData.onTrack.percentage / 100) * circumference} ${circumference}`}
-                                    strokeLinecap="round"
-                                    transform={`rotate(-90 ${chartSize / 2} ${chartSize / 2})`}
-                                />
-                                {/* Needs Support - 25% */}
-                                <Circle
-                                    cx={chartSize / 2}
-                                    cy={chartSize / 2}
-                                    r={radius}
-                                    fill="transparent"
-                                    stroke={progressData.needsSupport.color}
-                                    strokeWidth={strokeWidth}
-                                    strokeDasharray={`${(progressData.needsSupport.percentage / 100) * circumference} ${circumference}`}
-                                    strokeDashoffset={-(progressData.onTrack.percentage / 100) * circumference}
-                                    strokeLinecap="round"
-                                    transform={`rotate(-90 ${chartSize / 2} ${chartSize / 2})`}
-                                />
-                                {/* At Risk - 15% */}
-                                <Circle
-                                    cx={chartSize / 2}
-                                    cy={chartSize / 2}
-                                    r={radius}
-                                    fill="transparent"
-                                    stroke={progressData.atRisk.color}
-                                    strokeWidth={strokeWidth}
-                                    strokeDasharray={`${(progressData.atRisk.percentage / 100) * circumference} ${circumference}`}
-                                    strokeDashoffset={-((progressData.onTrack.percentage + progressData.needsSupport.percentage) / 100) * circumference}
-                                    strokeLinecap="round"
-                                    transform={`rotate(-90 ${chartSize / 2} ${chartSize / 2})`}
-                                />
-                            </Svg>
-                            <View style={styles.donutCenter}>
-                                <Text style={styles.donutCenterValue}>{totalClients}</Text>
-                                <Text style={styles.donutCenterLabel}>{t.clients}</Text>
+                        <View style={styles.donutContainer}>
+                            <View style={styles.donutChart}>
+                                <Svg width={chartSize} height={chartSize}>
+                                    {/* On Track */}
+                                    <Circle
+                                        cx={chartSize / 2}
+                                        cy={chartSize / 2}
+                                        r={radius}
+                                        fill="transparent"
+                                        stroke={progressData.onTrack.color}
+                                        strokeWidth={strokeWidth}
+                                        strokeDasharray={`${(progressData.onTrack.percentage / 100) * circumference} ${circumference}`}
+                                        strokeLinecap="round"
+                                        transform={`rotate(-90 ${chartSize / 2} ${chartSize / 2})`}
+                                    />
+                                    {/* Needs Support */}
+                                    <Circle
+                                        cx={chartSize / 2}
+                                        cy={chartSize / 2}
+                                        r={radius}
+                                        fill="transparent"
+                                        stroke={progressData.needsSupport.color}
+                                        strokeWidth={strokeWidth}
+                                        strokeDasharray={`${(progressData.needsSupport.percentage / 100) * circumference} ${circumference}`}
+                                        strokeDashoffset={-(progressData.onTrack.percentage / 100) * circumference}
+                                        strokeLinecap="round"
+                                        transform={`rotate(-90 ${chartSize / 2} ${chartSize / 2})`}
+                                    />
+                                    {/* At Risk */}
+                                    <Circle
+                                        cx={chartSize / 2}
+                                        cy={chartSize / 2}
+                                        r={radius}
+                                        fill="transparent"
+                                        stroke={progressData.atRisk.color}
+                                        strokeWidth={strokeWidth}
+                                        strokeDasharray={`${(progressData.atRisk.percentage / 100) * circumference} ${circumference}`}
+                                        strokeDashoffset={-((progressData.onTrack.percentage + progressData.needsSupport.percentage) / 100) * circumference}
+                                        strokeLinecap="round"
+                                        transform={`rotate(-90 ${chartSize / 2} ${chartSize / 2})`}
+                                    />
+                                </Svg>
+                                <View style={styles.donutCenter}>
+                                    <Text style={styles.donutCenterValue}>{progressData.total}</Text>
+                                    <Text style={styles.donutCenterLabel}>{t.clients}</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Legend */}
+                        <View style={styles.legendContainer}>
+                            <View style={[styles.legendItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.legendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                    <View style={[styles.legendDot, { backgroundColor: progressData.onTrack.color }]} />
+                                    <Text style={styles.legendText}>{t.onTrack}</Text>
+                                </View>
+                                <Text style={styles.legendValue}>{progressData.onTrack.percentage}% ({progressData.onTrack.count})</Text>
+                            </View>
+                            <View style={[styles.legendItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.legendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                    <View style={[styles.legendDot, { backgroundColor: progressData.needsSupport.color }]} />
+                                    <Text style={styles.legendText}>{t.needsSupport}</Text>
+                                </View>
+                                <Text style={styles.legendValue}>{progressData.needsSupport.percentage}% ({progressData.needsSupport.count})</Text>
+                            </View>
+                            <View style={[styles.legendItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.legendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                    <View style={[styles.legendDot, { backgroundColor: progressData.atRisk.color }]} />
+                                    <Text style={styles.legendText}>{t.atRisk}</Text>
+                                </View>
+                                <Text style={styles.legendValue}>{progressData.atRisk.percentage}% ({progressData.atRisk.count})</Text>
                             </View>
                         </View>
                     </View>
-
-                    {/* Legend */}
-                    <View style={styles.legendContainer}>
-                        <View style={[styles.legendItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <View style={[styles.legendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                                <View style={[styles.legendDot, { backgroundColor: progressData.onTrack.color }]} />
-                                <Text style={styles.legendText}>{t.onTrack}</Text>
-                            </View>
-                            <Text style={styles.legendValue}>{progressData.onTrack.percentage}% ({progressData.onTrack.count})</Text>
-                        </View>
-                        <View style={[styles.legendItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <View style={[styles.legendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                                <View style={[styles.legendDot, { backgroundColor: progressData.needsSupport.color }]} />
-                                <Text style={styles.legendText}>{t.needsSupport}</Text>
-                            </View>
-                            <Text style={styles.legendValue}>{progressData.needsSupport.percentage}% ({progressData.needsSupport.count})</Text>
-                        </View>
-                        <View style={[styles.legendItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <View style={[styles.legendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                                <View style={[styles.legendDot, { backgroundColor: progressData.atRisk.color }]} />
-                                <Text style={styles.legendText}>{t.atRisk}</Text>
-                            </View>
-                            <Text style={styles.legendValue}>{progressData.atRisk.percentage}% ({progressData.atRisk.count})</Text>
-                        </View>
-                    </View>
-                </View>
+                )}
 
                 {/* Daily Activity Chart */}
-                <View style={styles.chartCard}>
-                    <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {t.dailyActivity}
-                    </Text>
+                {data.dailyActivity.length > 0 && (
+                    <View style={styles.chartCard}>
+                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            {t.dailyActivity}
+                        </Text>
 
-                    <View style={[styles.barChartContainer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                        {weeklyActivity.map((day, index) => (
-                            <View key={index} style={styles.barColumn}>
-                                <View style={styles.barsWrapper}>
-                                    <View
-                                        style={[
-                                            styles.bar,
-                                            styles.barMessages,
-                                            { height: `${(day.messages / maxMessages) * 60}%` },
-                                        ]}
-                                    />
-                                    <View
-                                        style={[
-                                            styles.bar,
-                                            styles.barPlans,
-                                            { height: `${(day.plans / 3) * 50}%` },
-                                        ]}
-                                    />
-                                    <View
-                                        style={[
-                                            styles.bar,
-                                            styles.barCheckIns,
-                                            { height: `${(day.checkIns / 8) * 50}%` },
-                                        ]}
-                                    />
+                        <View style={[styles.barChartContainer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            {data.dailyActivity.map((day, index) => (
+                                <View key={day.date} style={styles.barColumn}>
+                                    <View style={styles.barsWrapper}>
+                                        <View
+                                            style={[
+                                                styles.bar,
+                                                styles.barMessages,
+                                                { height: `${(day.messages / maxMessages) * 60}%` },
+                                            ]}
+                                        />
+                                        <View
+                                            style={[
+                                                styles.bar,
+                                                styles.barPlans,
+                                                { height: `${(day.plans / Math.max(maxPlans, 1)) * 50}%` },
+                                            ]}
+                                        />
+                                        <View
+                                            style={[
+                                                styles.bar,
+                                                styles.barCheckIns,
+                                                { height: `${(day.checkIns / Math.max(maxCheckIns, 1)) * 50}%` },
+                                            ]}
+                                        />
+                                    </View>
+                                    <Text style={styles.barLabel}>{getDayLabel(day.date)}</Text>
                                 </View>
-                                <Text style={styles.barLabel}>{dayLabels[index]}</Text>
-                            </View>
-                        ))}
-                    </View>
-
-                    {/* Activity Totals */}
-                    <View style={[styles.activityTotals, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                        <View style={[styles.activityTotal, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <View style={[styles.activityDot, { backgroundColor: '#3B82F6' }]} />
-                            <View>
-                                <Text style={styles.activityTotalLabel}>{t.messages}</Text>
-                                <Text style={styles.activityTotalValue}>{totalMessages}</Text>
-                            </View>
+                            ))}
                         </View>
-                        <View style={[styles.activityTotal, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <View style={[styles.activityDot, { backgroundColor: '#10B981' }]} />
-                            <View>
-                                <Text style={styles.activityTotalLabel}>{t.plans}</Text>
-                                <Text style={styles.activityTotalValue}>{totalPlans}</Text>
-                            </View>
-                        </View>
-                        <View style={[styles.activityTotal, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <View style={[styles.activityDot, { backgroundColor: '#F59E0B' }]} />
-                            <View>
-                                <Text style={styles.activityTotalLabel}>{t.checkIns}</Text>
-                                <Text style={styles.activityTotalValue}>{totalCheckIns}</Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
 
-                {/* Weekly Weight Changes */}
-                <View style={styles.chartCard}>
-                    <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {t.weeklyWeightChanges}
-                    </Text>
-
-                    {clientProgress.map((client, index) => (
-                        <View key={index} style={[styles.weightRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                            <Text style={[styles.weightName, { textAlign: isRTL ? 'right' : 'left' }]}>
-                                {client.name}
-                            </Text>
-                            <View style={styles.weightBarContainer}>
-                                <View style={styles.weightBarBg}>
-                                    <View
-                                        style={[
-                                            styles.weightBar,
-                                            {
-                                                width: `${(Math.abs(client.change) / maxChange) * 50}%`,
-                                                backgroundColor: client.change < 0 ? '#10B981' : '#EF4444',
-                                                alignSelf: client.change < 0 ? 'flex-end' : 'flex-start',
-                                            },
-                                        ]}
-                                    />
+                        {/* Activity Totals */}
+                        <View style={[styles.activityTotals, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                            <View style={[styles.activityTotal, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.activityDot, { backgroundColor: '#3B82F6' }]} />
+                                <View>
+                                    <Text style={styles.activityTotalLabel}>{t.messages}</Text>
+                                    <Text style={styles.activityTotalValue}>{activityTotals.messages}</Text>
                                 </View>
                             </View>
-                            <Text
-                                style={[
-                                    styles.weightValue,
-                                    { color: client.change < 0 ? '#10B981' : '#EF4444' },
-                                ]}
-                            >
-                                {client.change > 0 ? '+' : ''}{client.change} {t.kg}
-                            </Text>
+                            <View style={[styles.activityTotal, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.activityDot, { backgroundColor: '#10B981' }]} />
+                                <View>
+                                    <Text style={styles.activityTotalLabel}>{t.plans}</Text>
+                                    <Text style={styles.activityTotalValue}>{activityTotals.plans}</Text>
+                                </View>
+                            </View>
+                            <View style={[styles.activityTotal, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <View style={[styles.activityDot, { backgroundColor: '#F59E0B' }]} />
+                                <View>
+                                    <Text style={styles.activityTotalLabel}>{t.checkIns}</Text>
+                                    <Text style={styles.activityTotalValue}>{activityTotals.checkIns}</Text>
+                                </View>
+                            </View>
                         </View>
-                    ))}
-                </View>
+                    </View>
+                )}
 
                 {/* Check-in Status Table */}
-                <View style={styles.tableCard}>
-                    <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
-                        {t.checkInStatus}
-                    </Text>
+                {data.clients.length > 0 && (
+                    <View style={styles.tableCard}>
+                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            {t.checkInStatus}
+                        </Text>
 
-                    {/* Table Header */}
-                    <View style={[styles.tableHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                        <Text style={[styles.tableHeaderText, { flex: 2, textAlign: isRTL ? 'right' : 'left' }]}>
-                            {t.client}
-                        </Text>
-                        <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}>
-                            {t.lastCheckIn}
-                        </Text>
-                        <Text style={[styles.tableHeaderText, { flex: 1, textAlign: isRTL ? 'right' : 'left' }]}>
-                            {t.status}
-                        </Text>
-                        <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}>
-                            {t.action}
-                        </Text>
-                    </View>
-
-                    {/* Table Rows */}
-                    {checkInStatus.map((item, index) => (
-                        <View
-                            key={index}
-                            style={[styles.tableRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
-                        >
-                            <Text
-                                style={[styles.tableText, { flex: 2, textAlign: isRTL ? 'right' : 'left' }]}
-                                numberOfLines={1}
-                            >
-                                {item.client}
+                        {/* Table Header */}
+                        <View style={[styles.tableHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: isRTL ? 'right' : 'left' }]}>
+                                {t.client}
                             </Text>
-                            <Text
-                                style={[styles.tableTextSecondary, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}
-                            >
-                                {item.lastCheckIn}
+                            <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}>
+                                {t.lastCheckIn}
                             </Text>
-                            <View style={{ flex: 1 }}>
-                                <View
-                                    style={[
-                                        styles.statusBadge,
-                                        item.status === 'on-time' && styles.statusOnTime,
-                                        item.status === 'overdue' && styles.statusOverdue,
-                                        item.status === 'at-risk' && styles.statusAtRisk,
-                                    ]}
-                                >
-                                    <Text style={styles.statusEmoji}>
-                                        {item.status === 'on-time' && '✅'}
-                                        {item.status === 'overdue' && '⚠️'}
-                                        {item.status === 'at-risk' && '🔴'}
-                                    </Text>
-                                </View>
-                            </View>
-                            <View style={[styles.actionContainer, { flex: 1.5, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                {item.status !== 'on-time' && (
-                                    <TouchableOpacity activeOpacity={0.7}>
-                                        <Text style={styles.actionText}>{t.sendReminder}</Text>
-                                    </TouchableOpacity>
-                                )}
-                                {item.status === 'at-risk' && (
-                                    <TouchableOpacity style={{ marginHorizontal: horizontalScale(4) }} activeOpacity={0.7}>
-                                        <Text style={styles.actionTextGreen}>{t.viewProfile}</Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
+                            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: isRTL ? 'right' : 'left' }]}>
+                                {t.status}
+                            </Text>
+                            <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}>
+                                {t.action}
+                            </Text>
                         </View>
-                    ))}
-                </View>
+
+                        {/* Table Rows */}
+                        {data.clients.map((client) => {
+                            const statusDisplay = getStatusDisplay(client.status);
+                            const lastCheckInText = formatLastCheckIn(client.lastCheckIn, lastCheckInTranslations);
+
+                            return (
+                                <View
+                                    key={client.id}
+                                    style={[styles.tableRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                                >
+                                    <Text
+                                        style={[styles.tableText, { flex: 2, textAlign: isRTL ? 'right' : 'left' }]}
+                                        numberOfLines={1}
+                                    >
+                                        {client.name}
+                                    </Text>
+                                    <Text
+                                        style={[styles.tableTextSecondary, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}
+                                    >
+                                        {lastCheckInText}
+                                    </Text>
+                                    <View style={{ flex: 1 }}>
+                                        <View style={[styles.statusBadge, statusDisplay.style]}>
+                                            <Text style={styles.statusEmoji}>{statusDisplay.emoji}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={[styles.actionContainer, { flex: 1.5, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                                        {client.status !== 'on_track' && (
+                                            <TouchableOpacity activeOpacity={0.7}>
+                                                <Text style={styles.actionText}>{t.sendReminder}</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {client.status === 'at_risk' && (
+                                            <TouchableOpacity style={{ marginHorizontal: horizontalScale(4) }} activeOpacity={0.7}>
+                                                <Text style={styles.actionTextGreen}>{t.viewProfile}</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                </View>
+                            );
+                        })}
+                    </View>
+                )}
 
                 {/* Bottom Spacing */}
                 <View style={{ height: verticalScale(32) }} />
@@ -493,13 +524,13 @@ export default function AnalyticsScreen() {
     );
 }
 
-// Stat Card Component
+// ============ STAT CARD COMPONENT ============
 interface StatCardProps {
     icon: React.ReactNode;
     iconBg: string;
     label: string;
     value: string;
-    trend: string;
+    trend: string | null;
     trendUp: boolean;
 }
 
@@ -511,20 +542,23 @@ function StatCard({ icon, iconBg, label, value, trend, trendUp }: StatCardProps)
             </View>
             <Text style={[styles.statLabel, { textAlign: isRTL ? 'right' : 'left' }]}>{label}</Text>
             <Text style={[styles.statValue, { textAlign: isRTL ? 'right' : 'left' }]}>{value}</Text>
-            <View style={[styles.trendRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                {trendUp ? (
-                    <TrendingUp size={horizontalScale(12)} color={colors.success} />
-                ) : (
-                    <TrendingDown size={horizontalScale(12)} color={colors.error} />
-                )}
-                <Text style={[styles.trendText, { color: trendUp ? colors.success : colors.error }]}>
-                    {trend}
-                </Text>
-            </View>
+            {trend && (
+                <View style={[styles.trendRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    {trendUp ? (
+                        <TrendingUp size={horizontalScale(12)} color={colors.success} />
+                    ) : (
+                        <TrendingDown size={horizontalScale(12)} color={colors.error} />
+                    )}
+                    <Text style={[styles.trendText, { color: trendUp ? colors.success : colors.error }]}>
+                        {trend}
+                    </Text>
+                </View>
+            )}
         </View>
     );
 }
 
+// ============ STYLES ============
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -549,24 +583,19 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: colors.textPrimary,
     },
-    subtitle: {
-        fontSize: ScaleFontSize(14),
-        color: colors.textSecondary,
-        marginTop: verticalScale(4),
-    },
     headerActions: {
         gap: horizontalScale(8),
     },
     filterDropdown: {
         backgroundColor: colors.bgSecondary,
         paddingHorizontal: horizontalScale(12),
-        paddingVertical: verticalScale(8), // Increased for touch area
+        paddingVertical: verticalScale(8),
         borderRadius: horizontalScale(8),
         borderWidth: 1,
         borderColor: colors.border,
         alignItems: 'center',
         gap: horizontalScale(4),
-        minHeight: verticalScale(44), // Ensure min height for touch target
+        minHeight: verticalScale(44),
         justifyContent: 'center',
     },
     filterDropdownText: {
@@ -582,9 +611,9 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: verticalScale(4) }, // Scaled
+        shadowOffset: { width: 0, height: verticalScale(4) },
         shadowOpacity: 0.1,
-        shadowRadius: horizontalScale(8), // Scaled
+        shadowRadius: horizontalScale(8),
         elevation: 4,
         zIndex: 100,
         minWidth: horizontalScale(120),
@@ -592,7 +621,7 @@ const styles = StyleSheet.create({
     dropdownItem: {
         paddingHorizontal: horizontalScale(16),
         paddingVertical: verticalScale(12),
-        minHeight: verticalScale(44), // Ensure min height
+        minHeight: verticalScale(44),
         justifyContent: 'center',
     },
     dropdownItemActive: {
@@ -613,6 +642,36 @@ const styles = StyleSheet.create({
         padding: horizontalScale(16),
         paddingBottom: verticalScale(32),
     },
+    // Loading & Empty States
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: verticalScale(12),
+    },
+    loadingText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: horizontalScale(32),
+        gap: verticalScale(12),
+    },
+    emptyTitle: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '600',
+        color: colors.textPrimary,
+        marginTop: verticalScale(8),
+    },
+    emptyDescription: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        textAlign: 'center',
+    },
+    // Stats Grid
     statsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -626,9 +685,9 @@ const styles = StyleSheet.create({
         padding: horizontalScale(14),
         marginBottom: verticalScale(12),
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: verticalScale(2) }, // Scaled
+        shadowOffset: { width: 0, height: verticalScale(2) },
         shadowOpacity: 0.05,
-        shadowRadius: horizontalScale(8), // Scaled
+        shadowRadius: horizontalScale(8),
         elevation: 2,
     },
     statIcon: {
@@ -658,15 +717,16 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(11),
         fontWeight: '500',
     },
+    // Chart Card
     chartCard: {
         backgroundColor: colors.bgPrimary,
         borderRadius: horizontalScale(16),
         padding: horizontalScale(16),
         marginBottom: verticalScale(16),
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: verticalScale(2) }, // Scaled
+        shadowOffset: { width: 0, height: verticalScale(2) },
         shadowOpacity: 0.05,
-        shadowRadius: horizontalScale(8), // Scaled
+        shadowRadius: horizontalScale(8),
         elevation: 2,
     },
     cardTitle: {
@@ -675,6 +735,7 @@ const styles = StyleSheet.create({
         color: colors.textPrimary,
         marginBottom: verticalScale(16),
     },
+    // Donut Chart
     donutContainer: {
         alignItems: 'center',
         marginBottom: verticalScale(20),
@@ -698,6 +759,7 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(12),
         color: colors.textSecondary,
     },
+    // Legend
     legendContainer: {
         gap: verticalScale(8),
     },
@@ -722,6 +784,7 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         color: colors.textSecondary,
     },
+    // Bar Chart
     barChartContainer: {
         height: verticalScale(160),
         justifyContent: 'space-between',
@@ -759,6 +822,7 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
         marginTop: verticalScale(6),
     },
+    // Activity Totals
     activityTotals: {
         justifyContent: 'space-around',
         paddingTop: verticalScale(16),
@@ -783,44 +847,16 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: colors.textPrimary,
     },
-    weightRow: {
-        alignItems: 'center',
-        marginBottom: verticalScale(12),
-    },
-    weightName: {
-        width: horizontalScale(70),
-        fontSize: ScaleFontSize(13),
-        color: colors.textPrimary,
-    },
-    weightBarContainer: {
-        flex: 1,
-        paddingHorizontal: horizontalScale(8),
-    },
-    weightBarBg: {
-        height: verticalScale(24),
-        backgroundColor: colors.bgSecondary,
-        borderRadius: horizontalScale(4),
-        overflow: 'hidden',
-    },
-    weightBar: {
-        height: '100%',
-        borderRadius: horizontalScale(4),
-    },
-    weightValue: {
-        width: horizontalScale(60),
-        fontSize: ScaleFontSize(13),
-        fontWeight: '600',
-        textAlign: 'right',
-    },
+    // Table
     tableCard: {
         backgroundColor: colors.bgPrimary,
         borderRadius: horizontalScale(16),
         paddingVertical: verticalScale(16),
         marginBottom: verticalScale(16),
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: verticalScale(2) }, // Scaled
+        shadowOffset: { width: 0, height: verticalScale(2) },
         shadowOpacity: 0.05,
-        shadowRadius: horizontalScale(8), // Scaled
+        shadowRadius: horizontalScale(8),
         elevation: 2,
         overflow: 'hidden',
     },
@@ -843,7 +879,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
         alignItems: 'center',
-        minHeight: verticalScale(44), // Touch target
+        minHeight: verticalScale(44),
     },
     tableText: {
         fontSize: ScaleFontSize(13),
@@ -880,12 +916,12 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(12),
         color: '#3B82F6',
         fontWeight: '500',
-        paddingVertical: verticalScale(4), // Touch area
+        paddingVertical: verticalScale(4),
     },
     actionTextGreen: {
         fontSize: ScaleFontSize(12),
         color: '#10B981',
         fontWeight: '500',
-        paddingVertical: verticalScale(4), // Touch area
+        paddingVertical: verticalScale(4),
     },
 });

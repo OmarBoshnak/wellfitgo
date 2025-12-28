@@ -71,6 +71,29 @@ export const getMyConversation = query({
 });
 
 /**
+ * Get total unread message count for the coach's tab bar badge
+ * Sums unreadByCoach across all active conversations
+ * Security: Only counts conversations where authenticated user is the coach
+ */
+export const getUnreadCount = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!user || user.role !== "coach") return 0;
+
+        // Query only active conversations for this coach using the existing by_coach index
+        const conversations = await ctx.db
+            .query("conversations")
+            .withIndex("by_coach", (q) => q.eq("coachId", user._id))
+            .filter((q) => q.eq(q.field("status"), "active"))
+            .collect();
+
+        // Sum unreadByCoach across all active conversations
+        return conversations.reduce((sum, conv) => sum + (conv.unreadByCoach || 0), 0);
+    },
+});
+
+/**
  * Get messages for a conversation (real-time subscription)
  */
 export const getMessages = query({

@@ -94,8 +94,14 @@ export const CalendarScreen: React.FC = () => {
     } = useCalendar();
 
     // Get date range for the current week
+    // Note: Using local date formatting instead of toISOString() to avoid UTC timezone shifts
     const weekDates = useMemo(() => {
-        return weekDays.map(d => d.date.toISOString().split('T')[0]);
+        return weekDays.map(d => {
+            const year = d.date.getFullYear();
+            const month = String(d.date.getMonth() + 1).padStart(2, '0');
+            const day = String(d.date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        });
     }, [weekDays]);
 
     // Fetch events from Convex for the week range

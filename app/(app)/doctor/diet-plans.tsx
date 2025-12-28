@@ -57,17 +57,17 @@ export default function DietPlansScreen() {
         setShowAssignModal(true);
     };
 
-    const handleAssignToClients = useCallback(async (clientIds: Id<"users">[]) => {
+    const handleAssignToClients = useCallback(async (clientIds: Id<"users">[], settings: { startDate: string; durationWeeks: number | null; notifyPush: boolean }) => {
         if (clientIds.length === 0 || !selectedDiet) return;
 
         setIsAssigning(true);
         try {
-            const startDate = new Date().toISOString().split('T')[0];
-
             const result = await assignMutation({
                 dietPlanId: selectedDiet.id as Id<"dietPlans">,
                 clientIds,
-                startDate,
+                startDate: settings.startDate,
+                durationWeeks: settings.durationWeeks ?? undefined,
+                sendNotification: settings.notifyPush,
             });
 
             setShowAssignModal(false);

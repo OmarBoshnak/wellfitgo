@@ -101,8 +101,14 @@ function calculateStatus(
 
 // ============ MAIN HOOK ============
 export function useTodaysAppointments(limit?: number): UseTodaysAppointmentsResult {
-    // Get today's date in YYYY-MM-DD format
-    const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+    // Get today's date in YYYY-MM-DD format using local timezone (not UTC)
+    const today = useMemo(() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }, []);
 
     // Trigger for status recalculation
     const [tick, setTick] = useState(0);

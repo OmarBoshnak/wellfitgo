@@ -1024,15 +1024,46 @@ const styles = StyleSheet.create({
     deleteText: { fontSize: ScaleFontSize(14), color: colors.error, textDecorationLine: 'underline' },
 
     // Footer
-    footer: { alignItems: 'center', marginBottom: 40 },
-    footerVersion: { fontSize: ScaleFontSize(12), color: colors.textSecondary },
-    footerMade: { fontSize: ScaleFontSize(12), color: colors.textSecondary, marginTop: 4 },
+    footer: {
+        alignItems: 'center',
+        marginBottom: 40
+    },
+    footerVersion: {
+        fontSize: ScaleFontSize(12),
+        color: colors.textSecondary
+    },
+    footerMade: {
+        fontSize: ScaleFontSize(12),
+        color: colors.textSecondary,
+        marginTop: 4
+    },
 
     // Modals
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    bottomSheet: { backgroundColor: colors.bgPrimary, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 20 },
-    sheetTitle: { fontSize: ScaleFontSize(18), fontWeight: '600', color: colors.textPrimary, marginBottom: 24 },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center'
+    },
+    bottomSheet: {
+        backgroundColor: colors.bgPrimary,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24
+    },
+    sheetHandle: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.border,
+        alignSelf: 'center',
+        marginBottom: 20
+    },
+    sheetTitle: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '600',
+        color: colors.textPrimary,
+        marginBottom: 24
+    },
     sheetOption: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.bgSecondary, borderRadius: 12, padding: 16, marginBottom: 12 },
     sheetOptionDanger: { backgroundColor: 'rgba(239, 83, 80, 0.1)' },
     sheetOptionText: { fontSize: ScaleFontSize(16), color: colors.textPrimary },

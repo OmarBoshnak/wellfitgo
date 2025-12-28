@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, CheckCircle, BarChart3, AlertCircle, AlertTriangle } from 'lucide-react-native';
+import { CheckCircle, BarChart3, AlertCircle, AlertTriangle } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/theme';
 import { isRTL } from '@/src/core/i18n';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
@@ -408,11 +408,6 @@ export default function PlansScreen() {
             {/* Header */}
             <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
                 <Text style={styles.title}>{t.plans}</Text>
-                <View style={[styles.headerActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    <TouchableOpacity style={styles.headerButton}>
-                        <Search size={horizontalScale(24)} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                </View>
             </View>
 
             {/* Tabs */}

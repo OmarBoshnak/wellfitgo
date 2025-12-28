@@ -127,7 +127,7 @@ export function RecentActivitySection({
 
     return (
         <View style={styles.sectionCard}>
-            <Text style={[styles.sectionTitleSmall, { textAlign: isRTL ? 'right' : 'left' }]}>
+            <Text style={[styles.sectionTitleSmall, { textAlign: isRTL ? 'left' : 'right' }]}>
                 {t.recentActivity}
             </Text>
 
@@ -147,7 +147,7 @@ export function RecentActivitySection({
                     </View>
 
                     {/* Activity Content */}
-                    <View style={styles.activityContent}>
+                    <View style={[styles.activityContent, { alignItems: isRTL ? 'flex-start' : 'flex-end' }]}>
                         <Text
                             style={[styles.activityText, { textAlign: isRTL ? 'right' : 'left' }]}
                             numberOfLines={2}
@@ -219,6 +219,7 @@ const styles = StyleSheet.create({
     },
     activityContent: {
         flex: 1,
+        marginHorizontal: horizontalScale(10)
     },
     activityText: {
         fontSize: ScaleFontSize(13),

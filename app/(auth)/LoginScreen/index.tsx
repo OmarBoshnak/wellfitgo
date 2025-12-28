@@ -7,11 +7,11 @@ import {
     verticalScale,
 } from '@/src/core/utils/scaling';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 
 const LoginScreen = () => {
     const logo = require('@/assets/Wellfitgo.png');
-    const { signInWithGoogle, signInWithApple, loading, error } = useClerkAuth();
+    const { signInWithGoogle, signInWithApple, signInWithFacebook, loading, error } = useClerkAuth();
 
     const handleGoogleSignIn = async () => {
         await signInWithGoogle();
@@ -19,6 +19,10 @@ const LoginScreen = () => {
 
     const handleAppleSignIn = async () => {
         await signInWithApple();
+    };
+
+    const handleFacebookSignIn = async () => {
+        await signInWithFacebook();
     };
 
     return (
@@ -38,13 +42,24 @@ const LoginScreen = () => {
                             onPress={handleGoogleSignIn}
                             image={require('@/assets/google.png')}
                         />
-                        <View style={{ marginVertical: verticalScale(12) }} />
+                        <View style={{ marginVertical: verticalScale(10) }} />
                         <AuthButton
-                            title={'تسجيل الدخول بإستخدام Apple'}
-                            color={colors.dark}
-                            onPress={handleAppleSignIn}
-                            icon={<Ionicons name="logo-apple" size={24} color={colors.white} />}
+                            title={'تسجيل الدخول بإستخدام فيسبوك'}
+                            color={'#1877F2'}
+                            onPress={handleFacebookSignIn}
+                            image={require('@/assets/facebook.png')}
                         />
+                        {Platform.OS === 'ios' && (
+                            <>
+                                <View style={{ marginVertical: verticalScale(10) }} />
+                                <AuthButton
+                                    title={'تسجيل الدخول بإستخدام Apple'}
+                                    color={colors.dark}
+                                    onPress={handleAppleSignIn}
+                                    icon={<Ionicons name="logo-apple" size={24} color={colors.white} />}
+                                />
+                            </>
+                        )}
                     </>
                 )}
                 {error && <Text style={styles.errorText}>{error}</Text>}

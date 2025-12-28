@@ -54,6 +54,7 @@ export const CurrentTimeLine: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
+        paddingHorizontal: horizontalScale(10),
         left: 0,
         right: 0,
         flexDirection: 'row',

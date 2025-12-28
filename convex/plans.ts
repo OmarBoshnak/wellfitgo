@@ -534,6 +534,8 @@ export const assignPlanToClients = mutation({
         dietPlanId: v.id("dietPlans"),
         clientIds: v.array(v.id("users")),
         startDate: v.string(), // ISO date string "2025-12-27"
+        durationWeeks: v.optional(v.number()), // null = ongoing
+        sendNotification: v.optional(v.boolean()), // Send push notification to clients
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
@@ -550,6 +552,14 @@ export const assignPlanToClients = mutation({
         const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + 6);
 
+        // Calculate plan end date based on duration (if specified)
+        let planEndDate: string | undefined;
+        if (args.durationWeeks) {
+            const planEnd = new Date(startDate);
+            planEnd.setDate(planEnd.getDate() + (args.durationWeeks * 7) - 1);
+            planEndDate = planEnd.toISOString().split("T")[0];
+        }
+
         // Calculate week number
         const firstDayOfYear = new Date(startDate.getFullYear(), 0, 1);
         const pastDaysOfYear = (startDate.getTime() - firstDayOfYear.getTime()) / 86400000;
@@ -557,6 +567,7 @@ export const assignPlanToClients = mutation({
 
         let successCount = 0;
         const errors: string[] = [];
+        const notifiedClients: string[] = [];
 
         for (const clientId of args.clientIds) {
             try {
@@ -603,11 +614,32 @@ export const assignPlanToClients = mutation({
                     status: "active",
                     isTemplate: false,
                     totalCalories: dietPlan.targetCalories,
+                    durationWeeks: args.durationWeeks,
+                    planEndDate,
                     createdAt: now,
                     updatedAt: now,
                 });
 
                 successCount++;
+
+                // Track for notification
+                if (args.sendNotification && client.firstName) {
+                    notifiedClients.push(client.firstName);
+                }
+
+                // Create notification record for this client
+                if (args.sendNotification) {
+                    await ctx.db.insert("notifications", {
+                        userId: clientId,
+                        type: "meal_plan",
+                        title: "New Meal Plan Assigned",
+                        titleAr: "تم تعيين خطة غذائية جديدة",
+                        message: `Your coach ${user.firstName} has assigned you a new meal plan: ${dietPlan.name}`,
+                        messageAr: `قام مدربك ${user.firstName} بتعيين خطة غذائية جديدة لك: ${dietPlan.nameAr || dietPlan.name}`,
+                        isRead: false,
+                        createdAt: now,
+                    });
+                }
             } catch (error) {
                 errors.push(`Failed to assign to client ${clientId}: ${error}`);
             }
@@ -626,7 +658,7 @@ export const assignPlanToClients = mutation({
             successCount,
             totalClients: args.clientIds.length,
             errors: errors.length > 0 ? errors : undefined,
+            notifiedClients: notifiedClients.length > 0 ? notifiedClients : undefined,
         };
     },
 });
-

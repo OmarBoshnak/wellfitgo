@@ -52,6 +52,7 @@ export const otpTranslations = {
 // Health history / onboarding translations
 export const healthTranslations = {
     quickSetup: isRTL ? 'الإعداد السريع' : 'Quick Setup',
+    personalizeTitle: isRTL ? 'لنقم بتخصيص خطتك' : "Let's personalize your plan",
     firstName: isRTL ? 'الاسم الأول' : 'First Name',
     lastName: isRTL ? 'الاسم الاخير' : 'Last Name',
     phoneNumber: isRTL ? 'رقم الموبايل' : 'Phone Number',
@@ -59,17 +60,25 @@ export const healthTranslations = {
     gender: isRTL ? 'الجنس' : 'Gender',
     male: isRTL ? 'ذكر' : 'Male',
     female: isRTL ? 'أنثى' : 'Female',
-    yourAge: isRTL ? 'السن' : 'Your age',
+    yourAge: isRTL ? 'السن' : 'Age',
+    years: isRTL ? 'سنة' : 'years',
+    height: isRTL ? 'الطول' : 'Height',
     whatHeight: isRTL ? 'ما هو طولك؟' : 'What is your height?',
     currentWeight: isRTL ? 'الوزن الحالي' : 'Current Weight',
     targetWeight: isRTL ? 'الوزن المستهدف' : 'Target Weight',
-    goal: isRTL ? 'الهدف' : 'Goal',
-    weightLoss: isRTL ? 'فقدان الوزن' : 'Weight Loss',
+    goal: isRTL ? 'هدفك' : 'Your Goal',
+    weightLoss: isRTL ? 'خسارة الوزن' : 'Lose Weight',
     maintainWeight: isRTL ? 'الحفاظ على الوزن' : 'Maintain Weight',
-    gainMuscle: isRTL ? 'زيادة العضلات' : 'Gain Muscle',
-    medicalConditions: isRTL ? 'هل لديك أي أمراض أخرى؟' : 'Do you have any other medical conditions?',
+    gainMuscle: isRTL ? 'بناء عضلات' : 'Build Muscle',
+    medicalConditions: isRTL ? 'هل لديك أي أمراض أخرى؟' : 'Medical Conditions',
     medicalPlaceholder: isRTL ? ' مثل الضغط أو السكري' : 'Optional: e.g. blood pressure, diabetes',
-    startJourney: isRTL ? 'ابدأ رحلتك' : 'Start Your Journey',
+    // Medical condition chips
+    conditionNone: isRTL ? 'لا يوجد' : 'None',
+    conditionDiabetes: isRTL ? 'سكري' : 'Diabetes',
+    conditionHypertension: isRTL ? 'ضغط' : 'Hypertension',
+    conditionPCOS: 'PCOS',
+    conditionOther: isRTL ? 'أخرى' : 'Other',
+    startJourney: isRTL ? 'ابدأ رحلتي' : 'Start My Journey',
 };
 
 // Home screen translations

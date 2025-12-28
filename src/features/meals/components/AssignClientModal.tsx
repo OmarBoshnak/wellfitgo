@@ -1,36 +1,47 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Image, Dimensions, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, TextInput, Image, Dimensions, Animated, ActivityIndicator, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, Check, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react-native';
+import { Search, Check, ChevronDown, CheckCircle, AlertCircle, Calendar, Users } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Duration options
+const DURATION_OPTIONS = [
+    { value: 'ongoing', label: isRTL ? 'مستمر (حتى التغيير)' : 'Ongoing (until changed)', weeks: null },
+    { value: '1week', label: isRTL ? 'أسبوع واحد' : '1 Week', weeks: 1 },
+    { value: '2weeks', label: isRTL ? 'أسبوعين' : '2 Weeks', weeks: 2 },
+    { value: '4weeks', label: isRTL ? '4 أسابيع' : '4 Weeks', weeks: 4 },
+    { value: '8weeks', label: isRTL ? '8 أسابيع' : '8 Weeks', weeks: 8 },
+    { value: '12weeks', label: isRTL ? '12 أسبوع' : '12 Weeks', weeks: 12 },
+];
 
 const t = {
     assignDietProgram: isRTL ? 'تعيين برنامج غذائي' : 'Assign Diet Program',
     searchClients: isRTL ? 'البحث عن العملاء...' : 'Search clients...',
+    selectClients: isRTL ? 'اختر العملاء' : 'Select Clients',
+    selectedClients: isRTL ? 'عميل مختار' : 'client selected',
+    selectedClientsPlural: isRTL ? 'عملاء مختارين' : 'clients selected',
+    noClientSelected: isRTL ? 'لم يتم اختيار عميل' : 'No client selected',
     clientsWithoutPlan: isRTL ? 'عملاء بدون خطة غذائية' : 'Clients without diet plan',
     clientsWithPlan: isRTL ? 'عملاء لديهم خطة' : 'Clients with existing plan',
     noPlan: isRTL ? 'لا يوجد خطة حالية' : 'No current plan',
     willReplace: isRTL ? 'سيتم استبدال الخطة الحالية' : 'Will replace current plan',
     startDate: isRTL ? 'تاريخ البدء' : 'Start Date',
     duration: isRTL ? 'المدة' : 'Duration',
-    ongoing: isRTL ? 'مستمر (حتى التغيير)' : 'Ongoing (until changed)',
-    tomorrow: isRTL ? 'غداً' : 'Tomorrow',
+    selectDuration: isRTL ? 'اختر المدة' : 'Select Duration',
     notifications: isRTL ? 'الإشعارات' : 'Notifications',
     notifyPush: isRTL ? 'إرسال إشعار للعميل' : 'Notify client via push notification',
-    sendEmail: isRTL ? 'إرسال ملخص بالبريد' : 'Send email with meal plan PDF',
-    sendWhatsApp: isRTL ? 'إرسال رسالة واتساب' : 'Send WhatsApp message',
     cancel: isRTL ? 'إلغاء' : 'Cancel',
     assignTo: isRTL ? 'تعيين لـ' : 'Assign to',
     client: isRTL ? 'عميل' : 'Client',
     clients: isRTL ? 'عملاء' : 'Clients',
-    target: isRTL ? 'الهدف' : 'Target',
     planAssigned: isRTL ? 'تم تعيين الخطة!' : 'Plan Assigned!',
     hasBeenAssigned: isRTL ? 'تم تعيينه لـ' : 'has been assigned to',
     done: isRTL ? 'تم' : 'Done',
@@ -38,6 +49,8 @@ const t = {
     loading: isRTL ? 'جاري التحميل...' : 'Loading...',
     noClients: isRTL ? 'لا يوجد عملاء' : 'No clients found',
     hasActivePlan: isRTL ? 'لديه خطة نشطة' : 'Has active plan',
+    today: isRTL ? 'اليوم' : 'Today',
+    tomorrow: isRTL ? 'غداً' : 'Tomorrow',
 };
 
 // Client type from Convex query
@@ -52,6 +65,12 @@ interface ConvexClient {
 // Success green gradient
 const successGradient = ['#28af62', '#2cc56f'] as const;
 
+interface AssignmentSettings {
+    startDate: string;
+    durationWeeks: number | null;
+    notifyPush: boolean;
+}
+
 interface Props {
     visible: boolean;
     diet: {
@@ -59,7 +78,7 @@ interface Props {
         name?: string;
     };
     onClose: () => void;
-    onAssign: (selectedClients: Id<"users">[]) => void;
+    onAssign: (selectedClients: Id<"users">[], settings: AssignmentSettings) => void;
     onViewClient?: (clientId: Id<"users">) => void;
     isAssigning?: boolean;
 }
@@ -68,12 +87,21 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
     const [selectedClients, setSelectedClients] = useState<Id<"users">[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [notifyPush, setNotifyPush] = useState(true);
-    const [sendEmail, setSendEmail] = useState(false);
-    const [sendWhatsApp, setSendWhatsApp] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [assignedClients, setAssignedClients] = useState<ConvexClient[]>([]);
     const scaleAnim = useState(new Animated.Value(0.8))[0];
     const opacityAnim = useState(new Animated.Value(0))[0];
+
+    // Date picker state
+    const [startDate, setStartDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // Duration state
+    const [selectedDuration, setSelectedDuration] = useState('ongoing');
+    const [showDurationPicker, setShowDurationPicker] = useState(false);
+
+    // Clients dropdown state
+    const [showClientsPicker, setShowClientsPicker] = useState(true); // Show by default
 
     // Fetch real clients from Convex
     const clients = useQuery(api.plans.getMyClients) ?? [];
@@ -120,6 +148,54 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
         );
     };
 
+    // Get selected duration option
+    const getDurationWeeks = (): number | null => {
+        const option = DURATION_OPTIONS.find(o => o.value === selectedDuration);
+        return option?.weeks ?? null;
+    };
+
+    // Format date for display
+    const formatDisplayDate = (date: Date): string => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const checkDate = new Date(date);
+        checkDate.setHours(0, 0, 0, 0);
+
+        if (checkDate.getTime() === today.getTime()) {
+            return t.today;
+        } else if (checkDate.getTime() === tomorrow.getTime()) {
+            return t.tomorrow;
+        }
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    // Get selected duration label
+    const getSelectedDurationLabel = (): string => {
+        const option = DURATION_OPTIONS.find(o => o.value === selectedDuration);
+        return option?.label || t.selectDuration;
+    };
+
+    // Get selected clients label
+    const getSelectedClientsLabel = (): string => {
+        if (selectedClients.length === 0) {
+            return t.noClientSelected;
+        } else if (selectedClients.length === 1) {
+            return `1 ${t.selectedClients}`;
+        } else {
+            return `${selectedClients.length} ${t.selectedClientsPlural}`;
+        }
+    };
+
+    // Handle date change
+    const handleDateChange = (event: any, selectedDate?: Date) => {
+        setShowDatePicker(Platform.OS === 'ios');
+        if (selectedDate) {
+            setStartDate(selectedDate);
+        }
+    };
+
     const handleAssign = () => {
         // Get assigned client details from real clients
         const assigned = clients.filter(c => selectedClients.includes(c.id));
@@ -128,7 +204,12 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
     };
 
     const handleDone = () => {
-        onAssign(selectedClients);
+        const settings: AssignmentSettings = {
+            startDate: startDate.toISOString().split('T')[0],
+            durationWeeks: getDurationWeeks(),
+            notifyPush,
+        };
+        onAssign(selectedClients, settings);
         setShowSuccess(false);
         setSelectedClients([]);
         setAssignedClients([]);
@@ -143,7 +224,7 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
 
     const renderCheckbox = (checked: boolean, onToggle: () => void, label: string) => (
         <TouchableOpacity
-            style={[styles.checkboxRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+            style={[styles.checkboxRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
             onPress={onToggle}
             activeOpacity={0.7}
         >
@@ -159,7 +240,7 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
             ) : (
                 <View style={styles.checkboxUnchecked} />
             )}
-            <Text style={[styles.checkboxLabel, { textAlign: isRTL ? 'right' : 'left' }]}>{label}</Text>
+            <Text style={[styles.checkboxLabel, { textAlign: isRTL ? 'left' : 'right' }]}>{label}</Text>
         </TouchableOpacity>
     );
 
@@ -170,7 +251,7 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
         return (
             <TouchableOpacity
                 key={client.id}
-                style={[styles.clientCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                style={[styles.clientCard, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
                 onPress={() => toggleClient(client.id)}
                 activeOpacity={0.7}
             >
@@ -187,12 +268,12 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
                     </View>
                 )}
                 <View style={styles.clientInfo}>
-                    <Text style={[styles.clientName, { textAlign: isRTL ? 'right' : 'left' }]}>
+                    <Text style={[styles.clientName, { textAlign: isRTL ? 'left' : 'right' }]}>
                         {fullName}
                     </Text>
                     {hasExistingPlan ? (
                         <View style={styles.planInfoRow}>
-                            <View style={[styles.activePlanBadge, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <View style={[styles.activePlanBadge, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                 <AlertCircle size={horizontalScale(12)} color="#F59E0B" />
                                 <Text style={styles.activePlanBadgeText}>{t.hasActivePlan}</Text>
                             </View>
@@ -337,98 +418,178 @@ export default function AssignClientModal({ visible, diet, onClose, onAssign, on
 
                         {/* Header */}
                         <View style={styles.header}>
-                            <Text style={[styles.headerTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.headerTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.assignDietProgram}
                             </Text>
-                            <Text style={[styles.headerSubtitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.headerSubtitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 🥗 {diet?.name || 'Classic'} {diet?.range || '1200-1300'}
                             </Text>
                         </View>
 
-                        {/* Search */}
-                        <View style={styles.searchContainer}>
-                            <View style={[styles.searchInputWrapper, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                <Search size={horizontalScale(20)} color={colors.textSecondary} />
-                                <TextInput
-                                    style={[styles.searchInput, { textAlign: isRTL ? 'right' : 'left' }]}
-                                    placeholder={t.searchClients}
-                                    placeholderTextColor={colors.textSecondary}
-                                    value={searchTerm}
-                                    onChangeText={setSearchTerm}
-                                />
-                            </View>
-                        </View>
-
                         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                            {/* Clients Without Plan */}
-                            {clientsWithoutPlan.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
-                                        {t.clientsWithoutPlan.toUpperCase()}
-                                    </Text>
-                                    {clientsWithoutPlan.map((client) => renderClientCard(client, false))}
-                                </View>
-                            )}
-
-                            {/* Divider */}
-                            <View style={styles.divider} />
-
-                            {/* Clients With Plan */}
-                            {clientsWithPlan.length > 0 && (
-                                <View style={styles.section}>
-                                    <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
-                                        {t.clientsWithPlan.toUpperCase()}
-                                    </Text>
-                                    {clientsWithPlan.map((client) => renderClientCard(client, true))}
-                                </View>
-                            )}
-
-                            {/* Divider */}
-                            <View style={styles.divider} />
-
                             {/* Settings Section */}
                             <View style={styles.settingsSection}>
+                                {/* Clients Dropdown */}
+                                <View style={styles.settingGroup}>
+                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
+                                        {t.selectClients.toUpperCase()}
+                                    </Text>
+                                    <TouchableOpacity
+                                        style={[styles.settingButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                                        onPress={() => setShowClientsPicker(!showClientsPicker)}
+                                    >
+                                        <View style={[styles.settingButtonLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                            <Users size={horizontalScale(18)} color={selectedClients.length > 0 ? colors.primaryDark : colors.textSecondary} />
+                                            <Text style={[
+                                                styles.settingButtonText,
+                                                selectedClients.length > 0 && styles.settingButtonTextActive
+                                            ]}>
+                                                {getSelectedClientsLabel()}
+                                            </Text>
+                                        </View>
+                                        <ChevronDown
+                                            size={horizontalScale(20)}
+                                            color={colors.textSecondary}
+                                            style={{ transform: [{ rotate: showClientsPicker ? '180deg' : '0deg' }] }}
+                                        />
+                                    </TouchableOpacity>
+
+                                    {/* Expanded Client List */}
+                                    {showClientsPicker && (
+                                        <View style={styles.clientsDropdown}>
+                                            {/* Search within dropdown */}
+                                            <View style={[styles.searchInputWrapper, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                                                <Search size={horizontalScale(18)} color={colors.textSecondary} />
+                                                <TextInput
+                                                    style={[styles.searchInput, { textAlign: isRTL ? 'right' : 'left' }]}
+                                                    placeholder={t.searchClients}
+                                                    placeholderTextColor={colors.textSecondary}
+                                                    value={searchTerm}
+                                                    onChangeText={setSearchTerm}
+                                                />
+                                            </View>
+
+                                            {/* Loading State */}
+                                            {isLoading ? (
+                                                <View style={styles.loadingContainer}>
+                                                    <ActivityIndicator size="small" color={colors.primaryDark} />
+                                                    <Text style={styles.loadingText}>{t.loading}</Text>
+                                                </View>
+                                            ) : filteredClients.length === 0 ? (
+                                                <View style={styles.emptyContainer}>
+                                                    <Text style={styles.emptyText}>{t.noClients}</Text>
+                                                </View>
+                                            ) : (
+                                                <>
+                                                    {/* Clients Without Plan */}
+                                                    {clientsWithoutPlan.length > 0 && (
+                                                        <View style={styles.clientSection}>
+                                                            <Text style={[styles.clientSectionTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
+                                                                {t.clientsWithoutPlan}
+                                                            </Text>
+                                                            {clientsWithoutPlan.map((client) => renderClientCard(client, false))}
+                                                        </View>
+                                                    )}
+
+                                                    {/* Clients With Plan */}
+                                                    {clientsWithPlan.length > 0 && (
+                                                        <View style={styles.clientSection}>
+                                                            <Text style={[styles.clientSectionTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
+                                                                {t.clientsWithPlan}
+                                                            </Text>
+                                                            {clientsWithPlan.map((client) => renderClientCard(client, true))}
+                                                        </View>
+                                                    )}
+                                                </>
+                                            )}
+                                        </View>
+                                    )}
+                                </View>
+
                                 {/* Start Date */}
                                 <View style={styles.settingGroup}>
-                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
                                         {t.startDate.toUpperCase()}
                                     </Text>
-                                    <TouchableOpacity style={[styles.settingButton, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                        <View style={[styles.settingButtonLeft, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                            <Text style={styles.settingEmoji}>📅</Text>
-                                            <Text style={styles.settingButtonText}>{t.tomorrow}, Dec 14, 2024</Text>
+                                    <TouchableOpacity
+                                        style={[styles.settingButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                                        onPress={() => setShowDatePicker(true)}
+                                    >
+                                        <View style={[styles.settingButtonLeft, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                            <Calendar size={horizontalScale(18)} color={colors.primaryDark} />
+                                            <Text style={styles.settingButtonText}>
+                                                {formatDisplayDate(startDate)}
+                                            </Text>
                                         </View>
                                         <ChevronDown size={horizontalScale(20)} color={colors.textSecondary} />
                                     </TouchableOpacity>
+                                    {showDatePicker && (
+                                        <DateTimePicker
+                                            value={startDate}
+                                            mode="date"
+                                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                            onChange={handleDateChange}
+                                            minimumDate={new Date()}
+                                        />
+                                    )}
                                 </View>
 
                                 {/* Duration */}
                                 <View style={styles.settingGroup}>
-                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
                                         {t.duration.toUpperCase()}
                                     </Text>
-                                    <TouchableOpacity style={[styles.settingButton, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                        <Text style={styles.settingButtonText}>{t.ongoing}</Text>
+                                    <TouchableOpacity
+                                        style={[styles.settingButton, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                                        onPress={() => setShowDurationPicker(!showDurationPicker)}
+                                    >
+                                        <Text style={styles.settingButtonText}>{getSelectedDurationLabel()}</Text>
                                         <ChevronDown size={horizontalScale(20)} color={colors.textSecondary} />
                                     </TouchableOpacity>
+                                    {showDurationPicker && (
+                                        <View style={styles.durationOptions}>
+                                            {DURATION_OPTIONS.map((option) => (
+                                                <TouchableOpacity
+                                                    key={option.value}
+                                                    style={[
+                                                        styles.durationOption,
+                                                        selectedDuration === option.value && styles.durationOptionSelected,
+                                                        { flexDirection: isRTL ? 'row' : 'row-reverse' },
+                                                    ]}
+                                                    onPress={() => {
+                                                        setSelectedDuration(option.value);
+                                                        setShowDurationPicker(false);
+                                                    }}
+                                                >
+                                                    <Text style={[
+                                                        styles.durationOptionText,
+                                                        selectedDuration === option.value && styles.durationOptionTextSelected,
+                                                    ]}>
+                                                        {option.label}
+                                                    </Text>
+                                                    {selectedDuration === option.value && (
+                                                        <Check size={horizontalScale(18)} color={colors.primaryDark} />
+                                                    )}
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
                                 </View>
 
-                                {/* Notifications */}
+                                {/* Notifications - Single Option */}
                                 <View style={styles.settingGroup}>
-                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                    <Text style={[styles.settingLabel, { textAlign: isRTL ? 'left' : 'right' }]}>
                                         {t.notifications.toUpperCase()}
                                     </Text>
                                     <View style={styles.checkboxList}>
                                         {renderCheckbox(notifyPush, () => setNotifyPush(!notifyPush), t.notifyPush)}
-                                        {renderCheckbox(sendEmail, () => setSendEmail(!sendEmail), t.sendEmail)}
-                                        {renderCheckbox(sendWhatsApp, () => setSendWhatsApp(!sendWhatsApp), t.sendWhatsApp)}
                                     </View>
                                 </View>
                             </View>
                         </ScrollView>
 
                         {/* Footer */}
-                        <View style={[styles.footer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View style={[styles.footer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
                                 <Text style={styles.cancelButtonText}>{t.cancel}</Text>
                             </TouchableOpacity>
@@ -501,7 +662,7 @@ const styles = StyleSheet.create({
     headerSubtitle: {
         fontSize: ScaleFontSize(14),
         color: colors.textSecondary,
-        marginTop: verticalScale(2),
+        marginVertical: verticalScale(10),
     },
     // Search
     searchContainer: {
@@ -636,6 +797,75 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(11),
         fontWeight: '500',
         color: '#F59E0B',
+    },
+    // Clients Dropdown
+    clientsDropdown: {
+        backgroundColor: colors.bgSecondary,
+        borderRadius: horizontalScale(12),
+        marginTop: verticalScale(8),
+        borderWidth: 1,
+        borderColor: colors.border,
+        overflow: 'hidden',
+        maxHeight: verticalScale(300),
+    },
+    clientSection: {
+        paddingVertical: verticalScale(8),
+    },
+    clientSectionTitle: {
+        fontSize: ScaleFontSize(11),
+        fontWeight: '600',
+        color: colors.textSecondary,
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(6),
+        backgroundColor: 'rgba(0,0,0,0.02)',
+    },
+    loadingContainer: {
+        paddingVertical: verticalScale(20),
+        alignItems: 'center',
+        gap: verticalScale(8),
+    },
+    loadingText: {
+        fontSize: ScaleFontSize(13),
+        color: colors.textSecondary,
+    },
+    emptyContainer: {
+        paddingVertical: verticalScale(20),
+        alignItems: 'center',
+    },
+    emptyText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+    },
+    settingButtonTextActive: {
+        color: colors.primaryDark,
+        fontWeight: '600',
+    },
+    durationOptions: {
+        backgroundColor: colors.bgSecondary,
+        borderRadius: horizontalScale(12),
+        marginTop: verticalScale(8),
+        borderWidth: 1,
+        borderColor: colors.border,
+        overflow: 'hidden',
+    },
+    durationOption: {
+        paddingHorizontal: horizontalScale(16),
+        paddingVertical: verticalScale(12),
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    durationOptionSelected: {
+        backgroundColor: 'rgba(80, 115, 254, 0.05)',
+    },
+    durationOptionText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textPrimary,
+    },
+    durationOptionTextSelected: {
+        fontWeight: '600',
+        color: colors.primaryDark,
     },
     selectionChecked: {
         width: horizontalScale(24),

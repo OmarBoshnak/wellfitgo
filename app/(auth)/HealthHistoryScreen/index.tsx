@@ -1,4 +1,4 @@
-import { colors } from '@/src/core/constants/Themes';
+import { colors, gradients } from '@/src/core/constants/Themes';
 import { healthTranslations, isRTL } from '@/src/core/constants/translations';
 import { useAppDispatch } from '@/src/store/hooks';
 import { setHealthData } from '@/src/store/userSlice';
@@ -7,11 +7,10 @@ import {
     ScaleFontSize,
     verticalScale,
 } from '@/src/core/utils/scaling';
-import { Feather } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import {
     KeyboardAvoidingView,
     Platform,
@@ -25,6 +24,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+// Design colors matching HTML/Tailwind design
+const designColors = {
+    brandBlue: '#5073FE',
+    brandCyan: '#02C3CD',
+    textPrimary: '#526477',
+    textSecondary: '#8093A5',
+    textTertiary: '#AAB8C5',
+    borderLight: '#E1E8EF',
+    bgScreen: '#F8F9FA',
+    bgCard: '#FFFFFF',
+};
+
 interface FormData {
     firstName: string;
     lastName: string;
@@ -36,13 +47,20 @@ interface FormData {
     currentWeight: string;
     targetWeight: string;
     goal: 'loss' | 'maintain' | 'gain' | '';
-    medicalConditions: string;
+    medicalConditions: string[];
 }
+
+const medicalConditionOptions = [
+    { key: 'none', label: healthTranslations.conditionNone },
+    { key: 'diabetes', label: healthTranslations.conditionDiabetes },
+    { key: 'hypertension', label: healthTranslations.conditionHypertension },
+    { key: 'pcos', label: healthTranslations.conditionPCOS },
+    { key: 'other', label: healthTranslations.conditionOther },
+];
 
 const HealthHistoryScreen = () => {
     const router = useRouter();
     const dispatch = useAppDispatch();
-    const completeOnboarding = useMutation(api.users.completeOnboarding);
 
     const [formData, setFormData] = useState<FormData>({
         firstName: '',
@@ -50,16 +68,34 @@ const HealthHistoryScreen = () => {
         phoneNumber: '',
         gender: '',
         age: '',
-        height: '',
+        height: '170',
         heightUnit: 'cm',
-        currentWeight: '',
+        currentWeight: '70',
         targetWeight: '',
         goal: '',
-        medicalConditions: '',
+        medicalConditions: [],
     });
 
     const updateFormData = <K extends keyof FormData>(key: K, value: FormData[K]) => {
         setFormData(prev => ({ ...prev, [key]: value }));
+    };
+
+    const toggleMedicalCondition = (condition: string) => {
+        setFormData(prev => {
+            const conditions = prev.medicalConditions;
+            // If selecting "none", clear all others
+            if (condition === 'none') {
+                return { ...prev, medicalConditions: ['none'] };
+            }
+            // If selecting anything else, remove "none" if present
+            let newConditions = conditions.filter(c => c !== 'none');
+            if (newConditions.includes(condition)) {
+                newConditions = newConditions.filter(c => c !== condition);
+            } else {
+                newConditions.push(condition);
+            }
+            return { ...prev, medicalConditions: newConditions };
+        });
     };
 
     const isFormValid = () => {
@@ -77,45 +113,48 @@ const HealthHistoryScreen = () => {
     };
 
     const handleComplete = async () => {
-        // Save form data to Redux store
-        dispatch(setHealthData(formData));
+        // Convert medicalConditions array to string for Redux/Convex
+        const medicalConditionsString = formData.medicalConditions
+            .filter(c => c !== 'none')
+            .join(', ');
 
-        // Sync with Convex database
-        try {
-            // Map form goal to Convex goal format
-            const goalMap = {
-                loss: 'weight_loss',
-                maintain: 'maintain',
-                gain: 'gain_muscle',
-            } as const;
+        const dataForStore = {
+            ...formData,
+            medicalConditions: medicalConditionsString,
+        };
 
-            await completeOnboarding({
-                firstName: formData.firstName,
-                lastName: formData.lastName,
-                phone: formData.phoneNumber,
-                gender: formData.gender as 'male' | 'female',
-                age: parseInt(formData.age, 10),
-                height: parseInt(formData.height, 10),
-                heightUnit: formData.heightUnit,
-                currentWeight: parseInt(formData.currentWeight, 10),
-                targetWeight: parseInt(formData.targetWeight, 10),
-                goal: goalMap[formData.goal as keyof typeof goalMap],
-                medicalConditions: formData.medicalConditions || undefined,
-            });
-            console.log('[HealthHistory] Data synced with Convex');
-        } catch (error) {
-            console.error('[HealthHistory] Failed to sync with Convex:', error);
-            // Continue to main app even if Convex sync fails
-        }
+        // Save form data to Redux store (will be synced to Convex in BookCallScreen)
+        dispatch(setHealthData(dataForStore));
 
-        router.replace('/(app)/(tabs)');
+        // Navigate to BookCallScreen - Convex sync happens there to prevent redirect
+        router.push('/(auth)/BookCallScreen');
     };
 
     const goals = [
-        { key: 'loss', label: healthTranslations.weightLoss },
-        { key: 'maintain', label: healthTranslations.maintainWeight },
-        { key: 'gain', label: healthTranslations.gainMuscle },
+        { key: 'loss', label: healthTranslations.weightLoss, icon: 'monitor-weight' as const },
+        { key: 'maintain', label: healthTranslations.maintainWeight, icon: 'accessibility-new' as const },
+        { key: 'gain', label: healthTranslations.gainMuscle, icon: 'fitness-center' as const },
     ] as const;
+
+    const incrementHeight = () => {
+        const current = parseInt(formData.height) || 0;
+        updateFormData('height', String(current + 1));
+    };
+
+    const decrementHeight = () => {
+        const current = parseInt(formData.height) || 0;
+        if (current > 0) updateFormData('height', String(current - 1));
+    };
+
+    const incrementWeight = () => {
+        const current = parseFloat(formData.currentWeight) || 0;
+        updateFormData('currentWeight', String((current + 0.5).toFixed(1)));
+    };
+
+    const decrementWeight = () => {
+        const current = parseFloat(formData.currentWeight) || 0;
+        if (current > 0) updateFormData('currentWeight', String((current - 0.5).toFixed(1)));
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -128,214 +167,331 @@ const HealthHistoryScreen = () => {
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Title */}
-                    <View style={{ flex: 1, alignItems: 'center', marginBottom: verticalScale(20) }}>
-                        <Image source={require('@/assets/Wellfitgo.png')} style={{ height: 80, width: 80, borderRadius: 10 }} />
-
+                    {/* Logo - UNCHANGED */}
+                    <View style={styles.logoContainer}>
+                        <Image source={require('@/assets/Wellfitgo.png')} style={styles.logo} />
                     </View>
 
-                    {/* First Name */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.firstName}</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={formData.firstName}
-                            onChangeText={(text) => updateFormData('firstName', text)}
-                            placeholder={healthTranslations.firstName}
-                            placeholderTextColor={colors.gray}
-                        />
+                    {/* Title Section */}
+                    <View style={styles.titleSection}>
+                        <Text style={[styles.mainTitle, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.personalizeTitle}</Text>
                     </View>
 
-                    {/* Last Name */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.lastName}</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={formData.lastName}
-                            onChangeText={(text) => updateFormData('lastName', text)}
-                            placeholder={healthTranslations.lastName}
-                            placeholderTextColor={colors.gray}
-                        />
-                    </View>
-
-                    {/* Phone Number */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.phoneNumber || 'Phone Number'}</Text>
-                        <TextInput
-                            keyboardType='number-pad'
-                            style={styles.textInput}
-                            value={formData.phoneNumber}
-                            onChangeText={(text) => updateFormData('phoneNumber', text.replace(/\D/g, ''))}
-                            placeholder="123456789"
-                            placeholderTextColor={colors.gray}
-                        />
-                    </View>
-
-
-                    {/* Gender Selection */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.gender}</Text>
-                        <View style={styles.genderRow}>
-                            {(['male', 'female'] as const).map((gender) => (
-                                <TouchableOpacity
-                                    key={gender}
-                                    style={[
-                                        styles.genderButton,
-                                        formData.gender === gender && styles.genderButtonSelected,
-                                    ]}
-                                    onPress={() => updateFormData('gender', gender)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.genderButtonText,
-                                            formData.gender === gender && styles.genderButtonTextSelected,
-                                        ]}
-                                    >
-                                        {gender === 'male' ? healthTranslations.male : healthTranslations.female}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                    {/* Form Fields */}
+                    <View style={styles.formSection}>
+                        {/* First Name */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.firstName}</Text>
+                            <TextInput
+                                style={styles.textInput}
+                                value={formData.firstName}
+                                onChangeText={(text) => updateFormData('firstName', text)}
+                                placeholder={healthTranslations.enterName}
+                                placeholderTextColor={designColors.textTertiary}
+                            />
                         </View>
-                    </View>
 
-                    {/* Age */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.yourAge}</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={formData.age}
+                        {/* Last Name */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.lastName}</Text>
+                            <TextInput
+                                style={styles.textInput}
+                                value={formData.lastName}
+                                onChangeText={(text) => updateFormData('lastName', text)}
+                                placeholder={healthTranslations.enterName}
+                                placeholderTextColor={designColors.textTertiary}
+                            />
+                        </View>
 
-                            onChangeText={(text) => updateFormData('age', text.replace(/\D/g, ''))}
-                            placeholder="25"
-                            placeholderTextColor={colors.gray}
-                            keyboardType="number-pad"
-                            maxLength={3}
-                        />
-                    </View>
+                        {/* Phone Number */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.phoneNumber}</Text>
+                            <TextInput
+                                style={styles.textInput}
+                                value={formData.phoneNumber}
+                                onChangeText={(text) => updateFormData('phoneNumber', text.replace(/\D/g, ''))}
+                                placeholder="123456789"
+                                placeholderTextColor={designColors.textTertiary}
+                                keyboardType="number-pad"
+                            />
+                        </View>
 
-                    {/* Height */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.whatHeight}</Text>
-                        <View style={styles.inputWithUnit}>
+                        {/* Gender Selection */}
+                        <View style={styles.genderContainer}>
                             <TouchableOpacity
-                                style={styles.unitButton}
-                                onPress={() => updateFormData('heightUnit', formData.heightUnit === 'cm' ? 'ft' : 'cm')}
+                                style={[
+                                    styles.genderCard,
+                                    formData.gender === 'male' && styles.genderCardSelected,
+                                ]}
+                                onPress={() => updateFormData('gender', 'male')}
                             >
-                                <Text style={styles.unitButtonText}>{formData.heightUnit}</Text>
+                                <MaterialIcons
+                                    name="male"
+                                    size={40}
+                                    color={formData.gender === 'male' ? designColors.brandBlue : designColors.textTertiary}
+                                />
+                                <Text style={[
+                                    styles.genderText,
+                                    formData.gender === 'male' && styles.genderTextSelected,
+                                ]}>
+                                    {healthTranslations.male}
+                                </Text>
                             </TouchableOpacity>
 
-                            <TextInput
-                                style={[styles.textInput, styles.inputFlex]}
-                                value={formData.height}
-                                onChangeText={(text) => updateFormData('height', text.replace(/\D/g, ''))}
-                                placeholder="175"
-                                placeholderTextColor={colors.gray}
-                                keyboardType="number-pad"
-                                maxLength={3}
-                            />
+                            <TouchableOpacity
+                                style={[
+                                    styles.genderCard,
+                                    formData.gender === 'female' && styles.genderCardSelected,
+                                ]}
+                                onPress={() => updateFormData('gender', 'female')}
+                            >
+                                <MaterialIcons
+                                    name="female"
+                                    size={40}
+                                    color={formData.gender === 'female' ? designColors.brandBlue : designColors.textTertiary}
+                                />
+                                <Text style={[
+                                    styles.genderText,
+                                    formData.gender === 'female' && styles.genderTextSelected,
+                                ]}>
+                                    {healthTranslations.female}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
-                    </View>
 
-                    {/* Current Weight */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.currentWeight}</Text>
-                        <View style={styles.inputWithUnit}>
-                            <View style={styles.unitButton}>
-                                <Text style={styles.unitButtonText}>kg</Text>
+                        {/* Age */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.yourAge}</Text>
+                            <View style={styles.inputWithSuffix}>
+                                <TextInput
+                                    style={[styles.textInput, styles.inputFlex]}
+                                    value={formData.age}
+                                    onChangeText={(text) => updateFormData('age', text.replace(/\D/g, ''))}
+                                    placeholder="25"
+                                    placeholderTextColor={designColors.textTertiary}
+                                    keyboardType="number-pad"
+                                    maxLength={3}
+                                />
+                                <Text style={styles.inputSuffix}>{healthTranslations.years}</Text>
                             </View>
-
-                            <TextInput
-                                style={[styles.textInput, styles.inputFlex]}
-                                value={formData.currentWeight}
-                                onChangeText={(text) => updateFormData('currentWeight', text.replace(/\D/g, ''))}
-                                placeholder="70"
-                                placeholderTextColor={colors.gray}
-                                keyboardType="number-pad"
-                                maxLength={3}
-                            />
                         </View>
-                    </View>
 
-                    {/* Target Weight */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.targetWeight}</Text>
-                        <View style={styles.inputWithUnit}>
-                            <View style={styles.unitButton}>
-                                <Text style={styles.unitButtonText}>kg</Text>
-                            </View>
+                        {/* Divider */}
+                        <View style={styles.divider} />
 
-                            <TextInput
-                                style={[styles.textInput, styles.inputFlex]}
-                                value={formData.targetWeight}
-                                onChangeText={(text) => updateFormData('targetWeight', text.replace(/\D/g, ''))}
-                                placeholder="65"
-                                placeholderTextColor={colors.gray}
-                                keyboardType="number-pad"
-                                maxLength={3}
-                            />
-                        </View>
-                    </View>
-
-                    {/* Goal Selection */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.goal}</Text>
-                        <View style={styles.goalsContainer}>
-                            {goals.map((goalItem) => (
-                                <TouchableOpacity
-                                    key={goalItem.key}
-                                    style={[
-                                        styles.goalButton,
-                                        formData.goal === goalItem.key && styles.goalButtonSelected,
-                                    ]}
-                                    onPress={() => updateFormData('goal', goalItem.key)}
-                                >
-                                    <Text
+                        {/* Height */}
+                        <View style={styles.inputGroup}>
+                            <View style={[styles.labelRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <Text style={styles.sectionTitle}>{healthTranslations.height}</Text>
+                                <View style={[styles.unitToggle, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                    <TouchableOpacity
                                         style={[
-                                            styles.goalButtonText,
-                                            formData.goal === goalItem.key && styles.goalButtonTextSelected,
+                                            styles.unitOption,
+                                            formData.heightUnit === 'cm' && styles.unitOptionSelected,
                                         ]}
+                                        onPress={() => updateFormData('heightUnit', 'cm')}
                                     >
-                                        {goalItem.label}
-                                    </Text>
+                                        {formData.heightUnit === 'cm' ? (
+                                            <LinearGradient
+                                                colors={gradients.primary}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={styles.unitGradient}
+                                            >
+                                                <Text style={styles.unitTextSelected}>cm</Text>
+                                            </LinearGradient>
+                                        ) : (
+                                            <Text style={styles.unitText}>cm</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.unitOption,
+                                            formData.heightUnit === 'ft' && styles.unitOptionSelected,
+                                        ]}
+                                        onPress={() => updateFormData('heightUnit', 'ft')}
+                                    >
+                                        {formData.heightUnit === 'ft' ? (
+                                            <LinearGradient
+                                                colors={gradients.primary}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                                style={styles.unitGradient}
+                                            >
+                                                <Text style={styles.unitTextSelected}>ft</Text>
+                                            </LinearGradient>
+                                        ) : (
+                                            <Text style={styles.unitText}>ft</Text>
+                                        )}
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                            <View style={[styles.pickerCard, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <TouchableOpacity style={styles.pickerButton} onPress={decrementHeight}>
+                                    <MaterialIcons name="remove" size={24} color={designColors.brandBlue} />
                                 </TouchableOpacity>
-                            ))}
+                                <View style={styles.pickerValue}>
+                                    <Text style={styles.pickerUnitText}>{formData.heightUnit}</Text>
+                                    <Text style={styles.pickerValueText}>{formData.height}</Text>
+                                </View>
+                                <TouchableOpacity style={styles.pickerButton} onPress={incrementHeight}>
+                                    <MaterialIcons name="add" size={24} color={designColors.brandBlue} />
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
 
-                    {/* Medical Conditions */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, isRTL && styles.alignText]}>{healthTranslations.medicalConditions}</Text>
-                        <TextInput
-                            style={[styles.textInput, styles.textArea]}
-                            value={formData.medicalConditions}
-                            onChangeText={(text) => updateFormData('medicalConditions', text)}
-                            placeholder={healthTranslations.medicalPlaceholder}
-                            placeholderTextColor={colors.gray}
-                            multiline
-                            numberOfLines={4}
-                            textAlignVertical="top"
-                        />
+                        {/* Current Weight */}
+                        <View style={styles.inputGroup}>
+                            <View style={[styles.labelRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                <Text style={styles.sectionTitle}>{healthTranslations.currentWeight}</Text>
+                            </View>
+                            <View style={[styles.pickerCardLarge, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                {/* Decorative scale lines */}
+                                <View style={styles.scaleDecoration}>
+                                    {[...Array(9)].map((_, i) => (
+                                        <View
+                                            key={i}
+                                            style={[
+                                                styles.scaleLine,
+                                                { height: i % 3 === 0 ? 12 : i % 2 === 0 ? 8 : 4 },
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                                <TouchableOpacity style={styles.pickerButton} onPress={decrementWeight}>
+                                    <MaterialIcons name="remove" size={24} color={designColors.brandBlue} />
+                                </TouchableOpacity>
+                                <View style={styles.pickerValue}>
+                                    <Text style={styles.pickerUnitTextCyan}>kg</Text>
+                                    <Text style={styles.pickerValueTextLarge}>{formData.currentWeight}</Text>
+                                </View>
+                                <TouchableOpacity style={styles.pickerButton} onPress={incrementWeight}>
+                                    <MaterialIcons name="add" size={24} color={designColors.brandBlue} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+
+                        {/* Target Weight */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.targetWeight}</Text>
+                            <View style={styles.inputWithSuffix}>
+                                <TextInput
+                                    style={[styles.textInput, styles.inputFlex]}
+                                    value={formData.targetWeight}
+                                    onChangeText={(text) => updateFormData('targetWeight', text.replace(/\D/g, ''))}
+                                    placeholder="70"
+                                    placeholderTextColor={designColors.textTertiary}
+                                    keyboardType="number-pad"
+                                    maxLength={3}
+                                />
+                                <Text style={styles.inputSuffixBlue}>kg</Text>
+                            </View>
+                        </View>
+
+                        {/* Divider */}
+                        <View style={styles.divider} />
+
+                        {/* Goal Selection */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.goal}</Text>
+                            <View style={styles.goalsContainer}>
+                                {goals.map((goalItem) => (
+                                    <TouchableOpacity
+                                        key={goalItem.key}
+                                        style={[
+                                            styles.goalCard,
+                                            formData.goal === goalItem.key && styles.goalCardSelected,
+                                            , { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                                        onPress={() => updateFormData('goal', goalItem.key)}
+                                    >
+                                        <View style={styles.goalIconContainer}>
+                                            <MaterialIcons
+                                                name={goalItem.icon}
+                                                size={24}
+                                                color={designColors.brandBlue}
+                                            />
+                                        </View>
+                                        <View style={styles.goalTextContainer}>
+                                            <Text style={[
+                                                styles.goalLabel,
+                                                formData.goal === goalItem.key && styles.goalLabelSelected,
+                                                , { textAlign: isRTL ? 'left' : 'right' }]}>
+                                                {goalItem.label}
+                                            </Text>
+                                        </View>
+                                        <View style={[
+                                            styles.radioOuter,
+                                            formData.goal === goalItem.key && styles.radioOuterSelected,
+                                        ]}>
+                                            {formData.goal === goalItem.key && (
+                                                <View style={styles.radioInner} />
+                                            )}
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Medical Conditions */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.sectionTitle, { textAlign: isRTL ? 'left' : 'right' }]}>{healthTranslations.medicalConditions}</Text>
+                            <View style={[styles.chipContainer, { flexDirection: isRTL ? 'row' : 'row-reverse', }]}>
+                                {medicalConditionOptions.map((condition) => {
+                                    const isSelected = formData.medicalConditions.includes(condition.key);
+                                    return (
+                                        <TouchableOpacity
+                                            key={condition.key}
+                                            onPress={() => toggleMedicalCondition(condition.key)}
+                                        >
+                                            {isSelected ? (
+                                                <LinearGradient
+                                                    colors={gradients.primary}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 0 }}
+                                                    style={styles.chipSelected}
+                                                >
+                                                    <Text style={styles.chipTextSelected}>{condition.label}</Text>
+                                                </LinearGradient>
+                                            ) : (
+                                                <View style={styles.chip}>
+                                                    <Text style={styles.chipText}>{condition.label}</Text>
+                                                </View>
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </View>
+
+                        {/* Spacer for bottom button */}
+                        <View style={{ height: verticalScale(80) }} />
                     </View>
                 </ScrollView>
 
-                {/* Bottom Section */}
+                {/* Submit Button */}
                 <View style={styles.bottomSection}>
-                    {/* Submit Button */}
                     <TouchableOpacity
-                        style={[
-                            styles.submitButton,
-                            !isFormValid() && styles.submitButtonDisabled,
-                        ]}
                         onPress={handleComplete}
                         disabled={!isFormValid()}
+                        activeOpacity={0.9}
                     >
-                        <Feather
-                            name={isRTL ? 'chevron-left' : 'chevron-right'}
-                            size={20}
-                            color={colors.white}
-                        />
+                        <LinearGradient
+                            colors={isFormValid() ? gradients.primary : ['#CCC', '#AAA']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={[
+                                styles.submitButton,
+                                !isFormValid() && styles.submitButtonDisabled,
+                            ]}
+                        >
+                            <MaterialIcons
+                                name={isRTL ? 'arrow-back' : 'arrow-forward'}
+                                size={20}
+                                color={colors.white}
+                            />
 
-                        <Text style={styles.submitButtonText}>{healthTranslations.startJourney}</Text>
+                            <Text style={styles.submitButtonText}>{healthTranslations.startJourney}</Text>
+                        </LinearGradient>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -346,8 +502,7 @@ const HealthHistoryScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.white,
-        direction: 'rtl',
+        backgroundColor: designColors.bgScreen,
     },
     keyboardView: {
         flex: 1,
@@ -358,160 +513,351 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: horizontalScale(20),
         paddingTop: verticalScale(16),
-        paddingBottom: verticalScale(16),
-        direction: 'rtl',
+        paddingBottom: verticalScale(24),
     },
-    alignText: {
-        textAlign: 'left'
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: verticalScale(12),
     },
-    title: {
-        fontSize: ScaleFontSize(28),
-        fontWeight: '700',
-        color: colors.dark,
-        textAlign: 'center',
-        marginBottom: verticalScale(24),
+    logo: {
+        height: verticalScale(70),
+        width: horizontalScale(70),
+        borderRadius: horizontalScale(10),
     },
-    inputGroup: {
+    titleSection: {
         marginBottom: verticalScale(16),
     },
+    mainTitle: {
+        fontSize: ScaleFontSize(22),
+        fontWeight: '700',
+        color: designColors.textPrimary,
+        textAlign: isRTL ? 'right' : 'left',
+        lineHeight: verticalScale(28),
+    },
+    formSection: {
+        gap: verticalScale(14),
+    },
+    inputGroup: {
+        gap: verticalScale(6),
+    },
     label: {
+        fontSize: ScaleFontSize(12),
+        fontWeight: '500',
+        color: designColors.textSecondary,
+        textAlign: isRTL ? 'right' : 'left',
+    },
+    sectionTitle: {
         fontSize: ScaleFontSize(14),
-        fontWeight: '600',
-        color: colors.dark,
-        marginBottom: verticalScale(8),
+        fontWeight: '700',
+        color: designColors.textPrimary,
         textAlign: isRTL ? 'right' : 'left',
     },
     textInput: {
-        height: verticalScale(48),
+        height: verticalScale(35),
         paddingHorizontal: horizontalScale(12),
-        borderRadius: 12,
+        borderRadius: horizontalScale(12),
         borderWidth: 1,
-        borderColor: colors.gray,
-        backgroundColor: colors.white,
-        fontSize: ScaleFontSize(16),
-        color: colors.dark,
+        borderColor: designColors.borderLight,
+        backgroundColor: designColors.bgCard,
+        fontSize: ScaleFontSize(14),
+        color: designColors.textPrimary,
         textAlign: isRTL ? 'right' : 'left',
     },
-    textArea: {
-        height: verticalScale(96),
-        paddingTop: verticalScale(12),
-    },
-    genderRow: {
-        flexDirection: isRTL ? 'row-reverse' : 'row',
-        gap: horizontalScale(12),
-    },
-    genderButton: {
-        flex: 1,
-        height: verticalScale(48),
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: colors.gray,
-        backgroundColor: colors.white,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    genderButtonSelected: {
-        borderColor: colors.primaryDark,
-        backgroundColor: 'rgba(80, 115, 254, 0.08)',
-    },
-    genderButtonText: {
-        fontSize: ScaleFontSize(16),
-        fontWeight: '600',
-        color: colors.dark,
-    },
-    genderButtonTextSelected: {
-        color: colors.primaryDark,
-    },
-    inputWithUnit: {
-        flexDirection: isRTL ? 'row-reverse' : 'row',
-        gap: horizontalScale(8),
+    inputWithSuffix: {
+        position: 'relative',
     },
     inputFlex: {
-        flex: 1,
+        paddingRight: horizontalScale(50),
     },
-    unitButton: {
-        width: horizontalScale(64),
-        height: verticalScale(48),
-        borderRadius: 12,
+    inputSuffix: {
+        position: 'absolute',
+        right: horizontalScale(12),
+        top: '50%',
+        transform: [{ translateY: -8 }],
+        fontSize: ScaleFontSize(12),
+        color: designColors.textTertiary,
+    },
+    inputSuffixBlue: {
+        position: 'absolute',
+        right: horizontalScale(12),
+        top: '50%',
+        transform: [{ translateY: -8 }],
+        fontSize: ScaleFontSize(12),
+        fontWeight: '700',
+        color: designColors.brandBlue,
+    },
+    genderContainer: {
+        flexDirection: isRTL ? 'row' : 'row-reverse',
+        gap: horizontalScale(15),
+    },
+    genderCard: {
+        flex: 1,
+        height: verticalScale(60),
+        backgroundColor: designColors.bgCard,
+        borderRadius: horizontalScale(16),
         borderWidth: 1,
-        borderColor: colors.gray,
-        backgroundColor: colors.white,
+        borderColor: designColors.borderLight,
         alignItems: 'center',
         justifyContent: 'center',
+        gap: verticalScale(4),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
     },
-    unitButtonText: {
-        fontSize: ScaleFontSize(16),
+    genderCardSelected: {
+        borderColor: designColors.brandBlue,
+        backgroundColor: 'rgba(80, 115, 254, 0.05)',
+    },
+    genderText: {
+        fontSize: ScaleFontSize(13),
+        fontWeight: '500',
+        color: designColors.textSecondary,
+    },
+    genderTextSelected: {
+        color: designColors.textPrimary,
         fontWeight: '600',
-        color: colors.dark,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: designColors.borderLight,
+        marginVertical: verticalScale(8),
+    },
+    labelRow: {
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+    },
+    unitToggle: {
+        backgroundColor: designColors.bgCard,
+        borderRadius: 20,
+        padding: 4,
+        borderWidth: 1,
+        borderColor: designColors.borderLight,
+    },
+    unitOption: {
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    unitOptionSelected: {},
+    unitGradient: {
+        paddingHorizontal: horizontalScale(12),
+        paddingVertical: verticalScale(4),
+        borderRadius: 16,
+    },
+    unitText: {
+        paddingHorizontal: horizontalScale(12),
+        paddingVertical: verticalScale(4),
+        fontSize: ScaleFontSize(12),
+        fontWeight: '500',
+        color: designColors.textTertiary,
+    },
+    unitTextSelected: {
+        fontSize: ScaleFontSize(12),
+        fontWeight: '700',
+        color: colors.white,
+    },
+    pickerCard: {
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: designColors.bgCard,
+        borderRadius: horizontalScale(16),
+        borderWidth: 1,
+        borderColor: designColors.borderLight,
+        paddingVertical: verticalScale(12),
+        paddingHorizontal: horizontalScale(12),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    pickerCardLarge: {
+        flexDirection: isRTL ? 'row-reverse' : 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: designColors.bgCard,
+        borderRadius: horizontalScale(16),
+        borderWidth: 1,
+        borderColor: designColors.borderLight,
+        paddingVertical: verticalScale(16),
+        paddingHorizontal: horizontalScale(12),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+        overflow: 'hidden',
+    },
+    scaleDecoration: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: horizontalScale(12),
+        opacity: 0.1,
+    },
+    scaleLine: {
+        width: 2,
+        backgroundColor: designColors.brandBlue,
+        borderRadius: 1,
+    },
+    pickerButton: {
+        padding: horizontalScale(6),
+        borderRadius: horizontalScale(16),
+    },
+    pickerValue: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: horizontalScale(2),
+    },
+    pickerValueText: {
+        fontSize: ScaleFontSize(32),
+        fontWeight: '700',
+        color: designColors.textPrimary,
+        letterSpacing: -1,
+    },
+    pickerValueTextLarge: {
+        fontSize: ScaleFontSize(38),
+        fontWeight: '700',
+        color: designColors.textPrimary,
+        letterSpacing: -1,
+    },
+    pickerUnitText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '500',
+        color: designColors.brandCyan,
+    },
+    pickerUnitTextCyan: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '500',
+        color: designColors.brandCyan,
     },
     goalsContainer: {
         gap: verticalScale(8),
     },
-    goalButton: {
-        height: verticalScale(48),
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: colors.gray,
-        backgroundColor: colors.white,
+    goalCard: {
+        alignItems: 'center',
+        gap: horizontalScale(12),
+        backgroundColor: designColors.bgCard,
+        borderRadius: horizontalScale(12),
+        borderWidth: 1,
+        borderColor: designColors.borderLight,
+        padding: horizontalScale(12),
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    goalCardSelected: {
+        borderColor: designColors.brandBlue,
+        backgroundColor: 'rgba(80, 115, 254, 0.05)',
+    },
+    goalIconContainer: {
+        width: horizontalScale(36),
+        height: horizontalScale(36),
+        borderRadius: horizontalScale(18),
+        backgroundColor: 'rgba(80, 115, 254, 0.1)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    goalButtonSelected: {
-        borderColor: colors.primaryDark,
-        backgroundColor: 'rgba(80, 115, 254, 0.08)',
+    goalTextContainer: {
+        flex: 1,
     },
-    goalButtonText: {
-        fontSize: ScaleFontSize(16),
-        fontWeight: '600',
-        color: colors.dark,
+    goalLabel: {
+        fontSize: ScaleFontSize(13),
+        fontWeight: '700',
+        color: designColors.textPrimary,
+        textAlign: isRTL ? 'right' : 'left',
     },
-    goalButtonTextSelected: {
-        color: colors.primaryDark,
+    goalLabelSelected: {
+        color: designColors.textPrimary,
+    },
+    radioOuter: {
+        width: horizontalScale(20),
+        height: horizontalScale(20),
+        borderRadius: horizontalScale(10),
+        borderWidth: 2,
+        borderColor: designColors.textTertiary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    radioOuterSelected: {
+        borderColor: designColors.brandBlue,
+        backgroundColor: designColors.brandBlue,
+    },
+    radioInner: {
+        width: horizontalScale(6),
+        height: horizontalScale(6),
+        borderRadius: horizontalScale(3),
+        backgroundColor: colors.white,
+    },
+    chipContainer: {
+        flexWrap: 'wrap',
+        gap: horizontalScale(6),
+    },
+    chip: {
+        paddingHorizontal: horizontalScale(12),
+        paddingVertical: verticalScale(8),
+        borderRadius: horizontalScale(16),
+        backgroundColor: designColors.bgCard,
+        borderWidth: 1,
+        borderColor: designColors.borderLight,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
+    },
+    chipSelected: {
+        paddingHorizontal: horizontalScale(12),
+        paddingVertical: verticalScale(8),
+        borderRadius: horizontalScale(16),
+    },
+    chipText: {
+        fontSize: ScaleFontSize(12),
+        fontWeight: '500',
+        color: designColors.textSecondary,
+    },
+    chipTextSelected: {
+        fontSize: ScaleFontSize(12),
+        fontWeight: '500',
+        color: colors.white,
     },
     bottomSection: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
         paddingHorizontal: horizontalScale(20),
-        paddingTop: verticalScale(16),
-        paddingBottom: verticalScale(16),
-        borderTopWidth: 1,
-        borderTopColor: colors.gray,
-    },
-    dotsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: horizontalScale(8),
-        marginBottom: verticalScale(16),
-    },
-    dot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: colors.gray,
-    },
-    dotActive: {
-        backgroundColor: colors.primaryDark,
+        paddingVertical: verticalScale(12),
+        backgroundColor: designColors.bgScreen,
     },
     submitButton: {
-        height: verticalScale(56),
-        borderRadius: 12,
-        backgroundColor: colors.primaryDark,
+        height: verticalScale(48),
+        borderRadius: horizontalScale(24),
         flexDirection: isRTL ? 'row-reverse' : 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: horizontalScale(8),
-        shadowColor: '#000',
+        gap: horizontalScale(6),
+        shadowColor: designColors.brandBlue,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
         elevation: 5,
     },
     submitButtonDisabled: {
-        backgroundColor: colors.gray,
         shadowOpacity: 0,
         elevation: 0,
     },
     submitButtonText: {
-        fontSize: ScaleFontSize(16),
-        fontWeight: '600',
+        fontSize: ScaleFontSize(15),
+        fontWeight: '700',
         color: colors.white,
     },
 });

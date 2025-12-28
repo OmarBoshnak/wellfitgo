@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { colors } from '@/src/core/constants/Themes';
 import { tabTranslations } from '@/src/core/constants/translations';
+import { verticalScale } from '@/src/core/utils/scaling';
 
 export default function TabsLayout() {
     return (
@@ -13,8 +14,8 @@ export default function TabsLayout() {
                 tabBarStyle: {
                     backgroundColor: colors.bgPrimary,
                     borderTopColor: colors.border,
-                    paddingTop: 8,
-                    height: 88,
+                    paddingVertical: verticalScale(10),
+                    height: 100,
                 },
                 tabBarLabelStyle: {
                     fontSize: 12,

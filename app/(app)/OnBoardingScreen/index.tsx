@@ -1,20 +1,13 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    Image,
-    StyleSheet,
-    TouchableOpacity,
-    Dimensions,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import {Dimensions, Image, StyleSheet, Text, TouchableOpacity, View,} from 'react-native';
+import {useRouter} from 'expo-router';
 import Swiper from 'react-native-swiper';
-import { Slides } from '@/src/core/constants/Slides';
-import { OnBoardingSlide } from '@/src/components/ui';
-import { colors } from '@/src/core/constants/Themes';
-import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import {Slides} from '@/src/core/constants/Slides';
+import {OnBoardingSlide} from '@/src/components/ui';
+import {colors} from '@/src/core/constants/Themes';
+import {horizontalScale, ScaleFontSize, verticalScale} from '@/src/core/utils/scaling';
 
-const { width, height } = Dimensions.get('window');
+const {width, height} = Dimensions.get('window');
 
 const OnBoardingScreen = () => {
     const router = useRouter();
@@ -42,23 +35,18 @@ const OnBoardingScreen = () => {
                 autoplay={true}
                 autoplayTimeout={4}
                 showsPagination={true}
-                dot={<View style={styles.dot} />}
-                activeDot={<View style={styles.activeDot} />}
+                dot={<View style={styles.dot}/>}
+                activeDot={<View style={styles.activeDot}/>}
                 paginationStyle={styles.pagination}
             >
                 {Slides.map((slide) => (
-                    <OnBoardingSlide key={slide.id} item={slide} />
+                    <OnBoardingSlide key={slide.id} item={slide}/>
                 ))}
             </Swiper>
 
             {/* Get Started Button */}
             <TouchableOpacity style={styles.button} onPress={handleGetStarted}>
                 <Text style={styles.buttonText}>ابدأ الآن</Text>
-            </TouchableOpacity>
-
-            {/* Login Link */}
-            <TouchableOpacity onPress={handleLogin}>
-                <Text style={styles.loginText}>لديك حساب؟ تسجيل الدخول</Text>
             </TouchableOpacity>
         </View>
     );

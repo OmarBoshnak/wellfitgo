@@ -5,6 +5,8 @@ import { colors } from '@/src/core/constants/Themes';
 import { View, Text, StyleSheet } from 'react-native';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 
 // Tab labels
 const tabLabels = {
@@ -25,6 +27,17 @@ function TabBadge({ count }: { count: number }) {
     );
 }
 
+// Messages tab icon with real-time unread count from Convex
+function MessagesTabIcon({ color, size }: { color: string; size: number }) {
+    const unreadCount = useQuery(api.chat.getUnreadCount) ?? 0;
+    return (
+        <View>
+            <MessageSquare size={horizontalScale(size)} color={color} />
+            <TabBadge count={unreadCount} />
+        </View>
+    );
+}
+
 export default function DoctorTabLayout() {
     return (
         <Tabs
@@ -38,7 +51,7 @@ export default function DoctorTabLayout() {
                     paddingBottom: verticalScale(10),
                     height: verticalScale(70),
                 },
-                tabBarActiveTintColor: colors.success,
+                tabBarActiveTintColor: colors.primaryDark,
                 tabBarInactiveTintColor: colors.textSecondary,
                 tabBarLabelStyle: {
                     fontSize: ScaleFontSize(11),
@@ -72,12 +85,7 @@ export default function DoctorTabLayout() {
                 name="messages"
                 options={{
                     title: tabLabels.messages,
-                    tabBarIcon: ({ color, size }) => (
-                        <View>
-                            <MessageSquare size={horizontalScale(size)} color={color} />
-                            <TabBadge count={5} />
-                        </View>
-                    ),
+                    tabBarIcon: ({ color, size }) => <MessagesTabIcon color={color} size={size} />,
                 }}
             />
             <Tabs.Screen

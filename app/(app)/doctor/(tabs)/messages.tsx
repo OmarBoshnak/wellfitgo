@@ -7,6 +7,7 @@ import {
     StyleSheet,
     RefreshControl,
     ActivityIndicator,
+    TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -29,9 +30,10 @@ import { Id } from '@/convex/_generated/dataModel';
 // Arabic Translations
 const t = {
     title: 'الرسائل',
-    search: 'بحث',
+    search: 'بحث...',
     newMessage: 'رسالة جديدة',
     loading: 'جاري التحميل...',
+    noResults: 'لا توجد نتائج',
 };
 
 // Format timestamp for Arabic
@@ -66,6 +68,8 @@ export default function MessagesScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
     const [selectedConversationId, setSelectedConversationId] = useState<Id<"conversations"> | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchActive, setIsSearchActive] = useState(false);
 
     // Use Convex hook for real-time inbox
     const { conversations, isLoading } = useCoachInbox(filterToInbox[activeFilter]);
@@ -91,16 +95,28 @@ export default function MessagesScreen() {
         }));
     }, [conversations]);
 
-    // Filter messages based on active filter
+    // Filter messages based on active filter and search query
     const filteredMessages = useMemo(() => {
+        let filtered = messages;
+
+        // Apply category filter
         if (activeFilter === 'clients') {
-            return messages.filter(m => m.category === 'client');
+            filtered = filtered.filter(m => m.category === 'client');
+        } else if (activeFilter === 'team') {
+            filtered = filtered.filter(m => m.category === 'team');
         }
-        if (activeFilter === 'team') {
-            return messages.filter(m => m.category === 'team');
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(m =>
+                m.name.toLowerCase().includes(query) ||
+                m.lastMessage.toLowerCase().includes(query)
+            );
         }
-        return messages;
-    }, [messages, activeFilter]);
+
+        return filtered;
+    }, [messages, activeFilter, searchQuery]);
 
     const handleRefresh = useCallback(() => {
         setRefreshing(true);
@@ -180,17 +196,35 @@ export default function MessagesScreen() {
                 {/* Header - RTL Layout */}
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
-                        {/* Actions on Left (RTL) */}
-                        <View style={styles.headerActions}>
-                            <TouchableOpacity style={styles.headerButton}>
-                                <MaterialIcons name="edit" size={24} color={colors.textSecondary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.headerButton}>
-                                <MaterialIcons name="search" size={24} color={colors.textSecondary} />
-                            </TouchableOpacity>
-                        </View>
-                        {/* Title on Right (RTL) */}
-                        <Text style={styles.title}>{t.title}</Text>
+                        {/* Search toggle on Left (RTL) */}
+                        <TouchableOpacity
+                            style={styles.headerButton}
+                            onPress={() => {
+                                setIsSearchActive(!isSearchActive);
+                                if (isSearchActive) setSearchQuery('');
+                            }}
+                        >
+                            <MaterialIcons
+                                name={isSearchActive ? "close" : "search"}
+                                size={24}
+                                color={isSearchActive ? colors.primaryDark : colors.textSecondary}
+                            />
+                        </TouchableOpacity>
+
+                        {/* Title or Search Input */}
+                        {isSearchActive ? (
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder={t.search}
+                                placeholderTextColor={colors.textSecondary}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                autoFocus
+                                returnKeyType="search"
+                            />
+                        ) : (
+                            <Text style={styles.title}>{t.title}</Text>
+                        )}
                     </View>
 
                     {/* Filter Chips */}
@@ -253,6 +287,17 @@ const styles = StyleSheet.create({
     },
     headerButton: {
         padding: horizontalScale(8),
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: ScaleFontSize(16),
+        color: colors.textPrimary,
+        textAlign: 'right',
+        paddingHorizontal: horizontalScale(12),
+        paddingVertical: verticalScale(8),
+        backgroundColor: colors.bgSecondary,
+        borderRadius: horizontalScale(8),
+        marginLeft: horizontalScale(12),
     },
     listContent: {
         paddingVertical: verticalScale(8),

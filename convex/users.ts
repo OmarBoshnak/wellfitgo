@@ -685,3 +685,184 @@ export const getNotifications = query({
         };
     },
 });
+
+/**
+ * Admin-only: Set a user's role
+ * Allows admins to promote users to coach or demote back to client
+ */
+export const setUserRole = mutation({
+    args: {
+        userId: v.id("users"),
+        role: v.union(v.literal("client"), v.literal("coach"), v.literal("admin")),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await requireAuth(ctx);
+
+        // Only admins can change roles
+        if (currentUser.role !== "admin") {
+            throw new Error("Only admins can change user roles");
+        }
+
+        // Don't allow changing your own admin role
+        if (args.userId === currentUser._id && args.role !== "admin") {
+            throw new Error("Cannot remove your own admin role");
+        }
+
+        await ctx.db.patch(args.userId, {
+            role: args.role,
+            updatedAt: Date.now(),
+        });
+
+        const updatedUser = await ctx.db.get(args.userId);
+        return {
+            success: true,
+            message: `User role changed to ${args.role}`,
+            user: updatedUser,
+        };
+    },
+});
+
+/**
+ * Admin-only: Set a user's role by email address
+ * Useful for pre-registering doctors before they sign in
+ */
+export const setUserRoleByEmail = mutation({
+    args: {
+        email: v.string(),
+        role: v.union(v.literal("client"), v.literal("coach"), v.literal("admin")),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await requireAuth(ctx);
+
+        // Only admins can change roles
+        if (currentUser.role !== "admin") {
+            throw new Error("Only admins can change user roles");
+        }
+
+        // Find user by email
+        const users = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("email"), args.email))
+            .collect();
+
+        if (users.length === 0) {
+            throw new Error(`No user found with email: ${args.email}`);
+        }
+
+        const targetUser = users[0];
+
+        await ctx.db.patch(targetUser._id, {
+            role: args.role,
+            updatedAt: Date.now(),
+        });
+
+        return {
+            success: true,
+            message: `User ${args.email} role changed to ${args.role}`,
+        };
+    },
+});
+
+/**
+ * Get all users with a specific role (for admin management)
+ */
+export const getUsersByRole = query({
+    args: {
+        role: v.union(v.literal("client"), v.literal("coach"), v.literal("admin")),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await getCurrentUser(ctx);
+        if (!currentUser || currentUser.role !== "admin") {
+            return [];
+        }
+
+        const users = await ctx.db
+            .query("users")
+            .withIndex("by_role", (q) => q.eq("role", args.role))
+            .collect();
+
+        return users.map((user) => ({
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            avatarUrl: user.avatarUrl,
+            role: user.role,
+            createdAt: user.createdAt,
+        }));
+    },
+});
+
+/**
+ * Admin-only: Set the assigned doctor for a client
+ * Quick way to assign doctors using the enum values
+ */
+export const setAssignedDoctor = mutation({
+    args: {
+        userId: v.id("users"),
+        assignedDoctor: v.union(v.literal("gehad"), v.literal("mostafa"), v.literal("none")),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await requireAuth(ctx);
+
+        // Only admins and coaches can assign doctors
+        if (currentUser.role !== "admin" && currentUser.role !== "coach") {
+            throw new Error("Only admins and coaches can assign doctors");
+        }
+
+        // Verify the target user exists and is a client
+        const targetUser = await ctx.db.get(args.userId);
+        if (!targetUser) {
+            throw new Error("User not found");
+        }
+
+        if (targetUser.role !== "client") {
+            throw new Error("Can only assign doctors to clients");
+        }
+
+        await ctx.db.patch(args.userId, {
+            assignedDoctor: args.assignedDoctor,
+            updatedAt: Date.now(),
+        });
+
+        return {
+            success: true,
+            message: `Assigned doctor ${args.assignedDoctor} to ${targetUser.firstName}`,
+        };
+    },
+});
+
+/**
+ * Get clients by assigned doctor
+ */
+export const getClientsByAssignedDoctor = query({
+    args: {
+        assignedDoctor: v.union(v.literal("gehad"), v.literal("mostafa"), v.literal("none")),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await getCurrentUser(ctx);
+        if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "coach")) {
+            return [];
+        }
+
+        const clients = await ctx.db
+            .query("users")
+            .filter((q) =>
+                q.and(
+                    q.eq(q.field("role"), "client"),
+                    q.eq(q.field("assignedDoctor"), args.assignedDoctor)
+                )
+            )
+            .collect();
+
+        return clients.map((client) => ({
+            _id: client._id,
+            firstName: client.firstName,
+            lastName: client.lastName,
+            email: client.email,
+            avatarUrl: client.avatarUrl,
+            assignedDoctor: client.assignedDoctor,
+            createdAt: client.createdAt,
+        }));
+    },
+});

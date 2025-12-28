@@ -166,7 +166,11 @@ const ChatScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={0}
+        >
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 <View style={[styles.headerContent, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
@@ -189,6 +193,7 @@ const ChatScreen = () => {
 
             {/* Messages Area */}
             <ScrollView
+                keyboardShouldPersistTaps="handled"
                 ref={scrollViewRef}
                 style={styles.messagesContainer}
                 contentContainerStyle={styles.messagesContent}
@@ -269,78 +274,73 @@ const ChatScreen = () => {
             </ScrollView>
 
             {/* Input Area */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-            >
-                <View style={[styles.inputContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={handlePickImage}
-                        disabled={isUploading || !conversationId}
-                    >
-                        {isUploading ? (
-                            <ActivityIndicator size="small" color={colors.textSecondary} />
-                        ) : (
-                            <Ionicons name="attach" size={24} color={colors.textSecondary} />
-                        )}
-                    </TouchableOpacity>
+            <View style={[styles.inputContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={handlePickImage}
+                    disabled={isUploading || !conversationId}
+                >
+                    {isUploading ? (
+                        <ActivityIndicator size="small" color={colors.textSecondary} />
+                    ) : (
+                        <Ionicons name="attach" size={24} color={colors.textSecondary} />
+                    )}
+                </TouchableOpacity>
 
-                    <View style={styles.inputWrapper}>
-                        <TextInput
-                            value={message}
-                            onChangeText={setMessage}
-                            placeholder={isRTL ? 'اكتب رسالتك...' : 'Type your message...'}
-                            placeholderTextColor={colors.textSecondary}
-                            style={[styles.textInput, isRTL && styles.textInputRTL]}
-                            multiline
-                            onFocus={() => setShowEmojiPicker(false)}
-                        />
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={toggleEmojiPicker}
-                    >
-                        <Ionicons
-                            name={showEmojiPicker ? "keypad-outline" : "happy-outline"}
-                            size={24}
-                            color={showEmojiPicker ? colors.primaryDark : colors.textSecondary}
-                        />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        onPress={isTyping ? handleSend : handleVoiceNote}
-                        style={[
-                            styles.sendButton,
-                            isTyping ? styles.sendButtonActive : styles.sendButtonActive // Use active style for mic too, or same color
-                        ]}
-                    >
-                        <Ionicons
-                            name={isTyping ? "send" : "mic"}
-                            size={20}
-                            color={colors.white}
-                            style={isTyping && isRTL ? { transform: [{ rotate: '180deg' }] } : undefined}
-                        />
-                    </TouchableOpacity>
+                <View style={styles.inputWrapper}>
+                    <TextInput
+                        value={message}
+                        onChangeText={setMessage}
+                        placeholder={isRTL ? 'اكتب رسالتك...' : 'Type your message...'}
+                        placeholderTextColor={colors.textSecondary}
+                        style={[styles.textInput, isRTL && styles.textInputRTL]}
+                        multiline
+                        onFocus={() => setShowEmojiPicker(false)}
+                    />
                 </View>
 
-                {/* Emoji Picker */}
-                {showEmojiPicker && (
-                    <View style={styles.emojiPicker}>
-                        {commonEmojis.map((emoji, index) => (
-                            <TouchableOpacity
-                                key={index}
-                                onPress={() => handleEmojiSelect(emoji)}
-                                style={styles.emojiItem}
-                            >
-                                <Text style={styles.emojiText}>{emoji}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
-            </KeyboardAvoidingView>
-        </View >
+                <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={toggleEmojiPicker}
+                >
+                    <Ionicons
+                        name={showEmojiPicker ? "keypad-outline" : "happy-outline"}
+                        size={24}
+                        color={showEmojiPicker ? colors.primaryDark : colors.textSecondary}
+                    />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={isTyping ? handleSend : handleVoiceNote}
+                    style={[
+                        styles.sendButton,
+                        isTyping ? styles.sendButtonActive : styles.sendButtonActive // Use active style for mic too, or same color
+                    ]}
+                >
+                    <Ionicons
+                        name={isTyping ? "send" : "mic"}
+                        size={20}
+                        color={colors.white}
+                        style={isTyping && isRTL ? { transform: [{ rotate: '180deg' }] } : undefined}
+                    />
+                </TouchableOpacity>
+            </View>
+
+            {/* Emoji Picker */}
+            {showEmojiPicker && (
+                <View style={styles.emojiPicker}>
+                    {commonEmojis.map((emoji, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            onPress={() => handleEmojiSelect(emoji)}
+                            style={styles.emojiItem}
+                        >
+                            <Text style={styles.emojiText}>{emoji}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+        </KeyboardAvoidingView>
     );
 };
 

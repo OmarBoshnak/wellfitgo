@@ -62,14 +62,19 @@ function InitialLayout() {
 
             if (hasCompletedOnboarding) {
                 // User is onboarded. Redirect to home if they are in Auth group or Splash
-                if (inAuthGroup || isPublicScreen) {
+                // BUT allow BookCallScreen to be visited (user needs to book a call after onboarding)
+                const isAtBookCallScreen = segments.some(s => s.toLowerCase().includes('bookcall'));
+
+                if ((inAuthGroup && !isAtBookCallScreen) || isPublicScreen) {
                     router.replace('/(app)/(tabs)');
                 }
             } else {
                 // User is NOT onboarded. Force them to HealthHistoryScreen.
+                // BUT allow BookCallScreen (user can navigate there from HealthHistoryScreen)
                 const isAtHealthHistory = segments.some(s => s.toLowerCase().includes('healthhistory'));
+                const isAtBookCallScreen = segments.some(s => s.toLowerCase().includes('bookcall'));
 
-                if (!isAtHealthHistory) {
+                if (!isAtHealthHistory && !isAtBookCallScreen) {
                     router.replace('/(auth)/HealthHistoryScreen');
                 }
             }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from 'convex/react';
@@ -68,8 +68,13 @@ export const DayCalendarScreen: React.FC = () => {
     // Phone call hook
     const { callClient } = usePhoneCall();
 
-    // Format date for Convex query
-    const isoDate = currentDate.toISOString().split('T')[0];
+    // Format date for Convex query using local timezone (not UTC)
+    const isoDate = useMemo(() => {
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }, [currentDate]);
 
     // Fetch events from Convex
     const convexEvents = useQuery(api.calendar.getEventsByDate, { date: isoDate });

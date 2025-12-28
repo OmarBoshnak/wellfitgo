@@ -168,7 +168,13 @@ export const AddCallModal: React.FC<AddCallModalProps> = ({
     // -------------------------------------------------------------------------
     const selectedClient = clients?.find((c: any) => c._id === selectedClientId);
     const formattedDate = formatDateDisplay(selectedDate);
-    const isoDate = selectedDate.toISOString().split('T')[0];
+    // Format date using local timezone to avoid UTC shift issues
+    const isoDate = useMemo(() => {
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }, [selectedDate]);
     const next14Days = useMemo(() => getNext14Days(), []); // Next 2 weeks from today
 
     // Get time labels for display

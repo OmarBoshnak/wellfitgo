@@ -484,3 +484,146 @@ export const updateEvent = mutation({
         };
     },
 });
+
+/**
+ * Book a consultation call (for clients during onboarding)
+ * This allows clients to book a call with a specific doctor
+ * Also assigns the selected doctor as their coach
+ */
+export const bookConsultationCall = mutation({
+    args: {
+        doctorId: v.id("users"), // Doctor/coach user ID
+        date: v.string(), // "2025-12-28"
+        startTime: v.string(), // "12:00"
+        endTime: v.string(), // "12:30"
+        notes: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const user = await requireAuth(ctx);
+
+        // Verify the doctor exists and is a coach/admin
+        const doctor = await ctx.db.get(args.doctorId);
+        if (!doctor || (doctor.role !== "coach" && doctor.role !== "admin")) {
+            throw new Error("Invalid doctor selected");
+        }
+
+        // Parse times to create Unix timestamps
+        const [startHour, startMin] = args.startTime.split(":").map(Number);
+        const [endHour, endMin] = args.endTime.split(":").map(Number);
+
+        // Parse date components manually to avoid timezone issues
+        const [year, month, day] = args.date.split("-").map(Number);
+
+        // Create dates in local timezone
+        const startAt = new Date(year, month - 1, day, startHour, startMin, 0, 0);
+        const endAt = new Date(year, month - 1, day, endHour, endMin, 0, 0);
+
+        // Validate end time is after start time
+        if (endAt.getTime() <= startAt.getTime()) {
+            throw new Error("End time must be after start time");
+        }
+
+        const now = Date.now();
+
+        // Create the calendar event
+        const eventId = await ctx.db.insert("calendarEvents", {
+            coachId: args.doctorId, // Doctor is the coach
+            clientId: user._id, // Current user is the client
+            type: "call",
+            reason: "Initial Consultation",
+            notes: args.notes,
+            date: args.date,
+            startTime: args.startTime,
+            endTime: args.endTime,
+            startAt: startAt.getTime(),
+            endAt: endAt.getTime(),
+            status: "scheduled",
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        // Assign the doctor to the client's profile
+        // Determine assignedDoctor value based on doctor's first name
+        const doctorName = doctor.firstName.toLowerCase();
+        let assignedDoctor: "gehad" | "mostafa" | "none" = "none";
+        if (doctorName.includes("gehad") || doctorName.includes("جيهاد")) {
+            assignedDoctor = "gehad";
+        } else if (doctorName.includes("mostafa") || doctorName.includes("مصطفى")) {
+            assignedDoctor = "mostafa";
+        }
+
+        await ctx.db.patch(user._id, {
+            assignedCoachId: args.doctorId,
+            assignedDoctor: assignedDoctor,
+            updatedAt: now,
+        });
+
+        return { success: true, eventId };
+    },
+});
+
+/**
+ * Get available doctors/coaches for clients to select
+ */
+export const getAvailableDoctors = query({
+    args: {},
+    handler: async (ctx) => {
+        // Get all coaches and admins
+        const coaches = await ctx.db
+            .query("users")
+            .filter((q) =>
+                q.or(
+                    q.eq(q.field("role"), "coach"),
+                    q.eq(q.field("role"), "admin")
+                )
+            )
+            .collect();
+
+        // Return simplified doctor list
+        return coaches.map((coach) => ({
+            id: coach._id,
+            name: `${coach.firstName} ${coach.lastName || ""}`.trim(),
+            nameAr: coach.preferredLanguage === "ar"
+                ? `${coach.firstName} ${coach.lastName || ""}`.trim()
+                : `${coach.firstName} ${coach.lastName || ""}`.trim(),
+            avatarUrl: coach.avatarUrl,
+        }));
+    },
+});
+
+/**
+ * Assign a doctor to a client (without booking a call)
+ * Used when client skips the call booking
+ */
+export const assignDoctor = mutation({
+    args: {
+        doctorId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const user = await requireAuth(ctx);
+
+        // Verify the doctor exists and is a coach/admin
+        const doctor = await ctx.db.get(args.doctorId);
+        if (!doctor || (doctor.role !== "coach" && doctor.role !== "admin")) {
+            throw new Error("Invalid doctor selected");
+        }
+
+        // Determine assignedDoctor value based on doctor's first name
+        const doctorName = doctor.firstName.toLowerCase();
+        let assignedDoctor: "gehad" | "mostafa" | "none" = "none";
+        if (doctorName.includes("gehad") || doctorName.includes("جيهاد")) {
+            assignedDoctor = "gehad";
+        } else if (doctorName.includes("mostafa") || doctorName.includes("مصطفى")) {
+            assignedDoctor = "mostafa";
+        }
+
+        // Assign the doctor to the client's profile
+        await ctx.db.patch(user._id, {
+            assignedCoachId: args.doctorId,
+            assignedDoctor: assignedDoctor,
+            updatedAt: Date.now(),
+        });
+
+        return { success: true };
+    },
+});

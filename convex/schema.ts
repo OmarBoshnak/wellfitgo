@@ -52,7 +52,13 @@ export default defineSchema({
             v.literal("maintain"),
             v.literal("gain_muscle")
         ),
-        assignedCoachId: v.optional(v.id("users")), // Reference to coach user
+        // Assigned doctor - simple enum-like field for easy identification
+        assignedDoctor: v.optional(v.union(
+            v.literal("gehad"),
+            v.literal("mostafa"),
+            v.literal("none")
+        )),
+        assignedCoachId: v.optional(v.id("users")), // Reference to coach user (for detailed lookup)
         subscriptionStatus: v.union(
             v.literal("active"),
             v.literal("paused"),
@@ -187,6 +193,8 @@ export default defineSchema({
         specialInstructions: v.optional(v.string()),
         isTemplate: v.boolean(), // Can be reused as template
         templateName: v.optional(v.string()),
+        durationWeeks: v.optional(v.number()), // Plan duration in weeks (null = ongoing)
+        planEndDate: v.optional(v.string()), // Calculated end date based on duration
         publishedAt: v.optional(v.number()),
         createdAt: v.number(),
         updatedAt: v.number(),
@@ -691,4 +699,20 @@ export default defineSchema({
         .index("by_actor", ["actorId"])
         .index("by_action", ["action"])
         .index("by_target", ["targetType", "targetId"]),
+
+    // ============ NOTIFICATIONS ============
+    notifications: defineTable({
+        userId: v.id("users"), // The user who receives the notification
+        type: v.string(), // "meal_plan", "message", "reminder", etc.
+        title: v.string(),
+        titleAr: v.optional(v.string()),
+        message: v.string(),
+        messageAr: v.optional(v.string()),
+        isRead: v.boolean(),
+        relatedId: v.optional(v.string()), // ID of related entity (plan, message, etc.)
+        createdAt: v.number(),
+    })
+        .index("by_user", ["userId"])
+        .index("by_user_unread", ["userId", "isRead"])
+        .index("by_type", ["type"]),
 });
