@@ -57,8 +57,56 @@ The system needs to support real-time messaging, admin oversight, and strict sub
 ### 3. Subscription Gating
 *   In the Client Chat screen, if `subscriptionStatus` is `cancelled` or `paused`, disable the input field and show a "Renew Subscription to Chat" banner.
 
+## Production Logic Requirements
+
+🔐 **A. Message Authorization Rules (Mandatory)**
+1. **Client:**
+   - May ONLY send messages to their `assignedChatDoctorId`.
+   - If no doctor is assigned → sending is disabled.
+   - If `subscriptionStatus !== 'active' | 'trial'` → sending is disabled.
+2. **Chat Doctor (Coach role):**
+   - May ONLY send messages to clients where `client.assignedChatDoctorId === currentUser._id`.
+3. **Admin:**
+   - Read access to all conversations.
+   - Sending messages is OPTIONAL:
+     - If allowed, must be explicitly implemented.
+     - Otherwise, admin is read-only.
+
+🔁 **B. Conversation Uniqueness & Reassignment**
+- There must be **EXACTLY ONE** active conversation per `(clientId, assignedChatDoctorId)`.
+- `assignChatDoctor` must be **idempotent**:
+  - If conversation already exists → reactivate it.
+  - Do NOT create duplicates.
+- If a client is reassigned to a new chat doctor:
+  - **Archive** the old conversation.
+  - **Create or activate** a new conversation with the new doctor.
+  - Old messages remain readable but locked (no new messages allowed).
+
+🔔 **C. Unread & Read Semantics**
+- Conversations must track:
+  - `unreadByDoctor`
+  - `unreadByClient`
+- Rules:
+  - When Client sends → `unreadByDoctor++`
+  - When Doctor sends → `unreadByClient++`
+  - Opening a conversation resets unread for that role ONLY.
+- **Admin** opening a conversation:
+  - Does **NOT** affect unread counts for doctor or client (Ghost Mode).
+
+⚡ **D. Index & Performance Requirements**
+- **Required indexes:**
+  - `conversations.by_participants`
+  - `conversations.by_updatedAt`
+  - `users.by_assignedChatDoctor`
+  - `messages.by_conversation`
+- **Inbox queries MUST:**
+  - Filter by role first.
+  - Filter by subscription status early.
+  - Avoid full table scans.
+
 ## Implementation Steps for Agent
 1.  **Schema:** Add `assignedChatDoctorId` to `users`.
-2.  **Backend:** Implement `assignChatDoctor` and update `getCoachInbox` / `getMessages` to respect the new field and Admin privileges.
-3.  **Frontend (Doctor):** Update `messages.tsx` to render the real list of assigned paid clients.
-4.  **Frontend (Patient):** Update `chat.tsx` to show the correct Doctor header and disable chat if subscription is inactive.
+2.  **Backend:** Implement `assignChatDoctor` with the Reassignment logic (B) and Authorization rules (A).
+3.  **Backend:** Update `getCoachInbox` / `getMessages` to respect Admin privileges and Index requirements (D).
+4.  **Frontend (Doctor):** Update `messages.tsx` to render the real list of assigned paid clients with accurate Unread counts (C).
+5.  **Frontend (Patient):** Update `chat.tsx` to show the correct Doctor header and enforce Subscription Gating (A).
