@@ -104,9 +104,36 @@ The system needs to support real-time messaging, admin oversight, and strict sub
   - Filter by subscription status early.
   - Avoid full table scans.
 
+📸 **E. Media & Voice Capabilities**
+
+### 1. Image Attachments (The "Attach" Button)
+- **Status:** Partially implemented in `chat.tsx`.
+- **Requirement:**
+  - Ensure `expo-image-picker` is correctly configured (verify permissions in `app.json` / Info.plist).
+  - Use `api.chat.generateUploadUrl` to get a signed URL.
+  - Upload the file blob to Convex Storage.
+  - Send message with `messageType: 'image'` and `mediaUrl: storageId`.
+  - **UX:** Show a progress indicator while uploading. Disable send button during upload.
+
+### 2. Voice Notes (The "Mic" Button)
+- **Status:** Pending implementation (currently empty function).
+- **Requirement:**
+  - Install/Use `expo-av` for recording and playback.
+  - **Recording Flow:**
+    - Press Mic → Request Permission → Start Recording (show red indicator/timer).
+    - Release/Stop → Upload Audio Blob to Convex Storage.
+    - Send message with `messageType: 'voice'`, `mediaUrl: storageId`, and `mediaDuration`.
+  - **Playback UI:**
+    - Render a custom audio player bubble.
+    - Features: Play/Pause toggle, Seek bar, Duration display.
+    - **Performance:** Ensure sound is unloaded when component unmounts.
+
 ## Implementation Steps for Agent
 1.  **Schema:** Add `assignedChatDoctorId` to `users`.
 2.  **Backend:** Implement `assignChatDoctor` with the Reassignment logic (B) and Authorization rules (A).
 3.  **Backend:** Update `getCoachInbox` / `getMessages` to respect Admin privileges and Index requirements (D).
 4.  **Frontend (Doctor):** Update `messages.tsx` to render the real list of assigned paid clients with accurate Unread counts (C).
-5.  **Frontend (Patient):** Update `chat.tsx` to show the correct Doctor header and enforce Subscription Gating (A).
+5.  **Frontend (Patient):** Update `chat.tsx` to:
+    - Show the correct Doctor header.
+    - Enforce Subscription Gating (A).
+    - **Enable Media:** Fix Image Attachments and implement Voice Recording/Playback (E).
