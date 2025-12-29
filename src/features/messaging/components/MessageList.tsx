@@ -13,9 +13,10 @@ const t = {
 interface Props {
     messages: ChatMessage[];
     avatarUri?: string;
+    onMessageLongPress?: (message: ChatMessage) => void;
 }
 
-const MessageList = React.memo(function MessageList({ messages, avatarUri }: Props) {
+const MessageList = React.memo(function MessageList({ messages, avatarUri, onMessageLongPress }: Props) {
     const flatListRef = useRef<FlatList>(null);
 
     // Auto-scroll to bottom when new messages arrive
@@ -39,6 +40,7 @@ const MessageList = React.memo(function MessageList({ messages, avatarUri }: Pro
                 message={item}
                 showAvatar={showAvatar && item.sender === 'client'}
                 avatarUri={avatarUri}
+                onLongPress={onMessageLongPress}
             />
         );
     };

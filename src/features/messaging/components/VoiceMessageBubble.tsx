@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { colors } from '@/src/core/constants/Themes';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 
@@ -37,7 +39,7 @@ const stopCurrentPlayback = async () => {
 
 interface Props {
     id: string;
-    audioUri: string;
+    audioUri: string; // This is now the storage ID
     duration?: number; // in milliseconds
     isMine: boolean;
     timestamp: string;
@@ -50,6 +52,17 @@ export default function VoiceMessageBubble({ id, audioUri, duration = 0, isMine,
     const [isLoading, setIsLoading] = useState(false);
     const soundRef = useRef<any>(null);
     const progressAnim = useRef(new Animated.Value(0)).current;
+
+    // Fetch actual file URL from Convex storage
+    // If audioUri starts with 'file://' it's a local file, otherwise it's a storage ID
+    const isStorageId = audioUri && !audioUri.startsWith('file://') && !audioUri.startsWith('http');
+    const fileUrl = useQuery(
+        api.chat.getFileUrl,
+        isStorageId ? { storageId: audioUri as any } : "skip"
+    );
+
+    // Use either the fetched URL or the original URI (for local files)
+    const actualAudioUri = isStorageId ? fileUrl : audioUri;
 
     // Format time as mm:ss
     const formatTime = (ms: number) => {
@@ -72,6 +85,12 @@ export default function VoiceMessageBubble({ id, audioUri, duration = 0, isMine,
             playbackListeners.delete(id);
             // Cleanup sound on unmount
             if (soundRef.current) {
+                // If this is the global current sound, clear it to avoid stale reference errors
+                if (currentSound === soundRef.current) {
+                    currentSound = null;
+                    currentlyPlayingId = null;
+                }
+
                 soundRef.current.unloadAsync().catch(() => { });
                 soundRef.current = null;
             }
@@ -114,6 +133,12 @@ export default function VoiceMessageBubble({ id, audioUri, duration = 0, isMine,
             return;
         }
 
+        // Wait for URL to be available if it's a storage ID
+        if (!actualAudioUri) {
+            console.log('Audio URL not yet available');
+            return;
+        }
+
         if (isPlaying) {
             // Pause
             if (soundRef.current) {
@@ -129,16 +154,45 @@ export default function VoiceMessageBubble({ id, audioUri, duration = 0, isMine,
 
                 setIsLoading(true);
                 try {
-                    const { sound } = await Audio.Sound.createAsync(
-                        { uri: audioUri },
+                    // Ensure audio mode is set for playback
+                    await Audio.setAudioModeAsync({
+                        allowsRecordingIOS: false,
+                        playsInSilentModeIOS: true,
+                        staysActiveInBackground: false,
+                        shouldDuckAndroid: true,
+                        playThroughEarpieceAndroid: false
+                    });
+
+                    // Create sound with a timeout race to prevent infinite loading
+                    const soundPromise = Audio.Sound.createAsync(
+                        { uri: actualAudioUri },
                         { shouldPlay: true, positionMillis: positionMillis },
                         onPlaybackStatusUpdate
                     );
+
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Audio load timeout')), 8000)
+                    );
+
+                    const result: any = await Promise.race([soundPromise, timeoutPromise]);
+                    const { sound } = result;
+
                     soundRef.current = sound;
                     currentSound = sound;
                     currentlyPlayingId = id;
-                } catch (e) {
+                } catch (e: any) {
                     console.log('Error playing audio:', e);
+
+                    // Show error to user if it's not just a cancellation
+                    if (e.message === 'Audio load timeout') {
+                        Alert.alert('خطأ', 'تعذر تشغيل الرسالة الصوتية: انتهت مهلة التحميل');
+                    } else {
+                        // alert('تعذر تشغيل الرسالة الصوتية');
+                    }
+
+                    // Reset state on error
+                    setIsPlaying(false);
+                    setPositionMillis(0);
                 } finally {
                     setIsLoading(false);
                 }
@@ -179,7 +233,7 @@ export default function VoiceMessageBubble({ id, audioUri, duration = 0, isMine,
                         >
                             <MaterialIcons
                                 name={isLoading ? 'hourglass-empty' : isPlaying ? 'pause' : 'play-arrow'}
-                                size={28}
+                                size={25}
                                 color="#FFFFFF"
                             />
                         </TouchableOpacity>
@@ -303,12 +357,12 @@ const styles = StyleSheet.create({
     bubble: {
         borderRadius: horizontalScale(16),
         paddingVertical: verticalScale(8),
-        paddingHorizontal: horizontalScale(12),
+        paddingHorizontal: horizontalScale(10),
         maxWidth: '80%',
         minWidth: horizontalScale(200),
     },
     bubbleMine: {
-        borderBottomLeftRadius: horizontalScale(4),
+        borderBottomRightRadius: horizontalScale(4),
     },
     bubbleClient: {
         backgroundColor: colors.bgPrimary,
@@ -317,14 +371,15 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
     },
     content: {
-        flexDirection: 'row-reverse', // RTL
+        flexDirection: 'row-reverse', // LTR for progress bar
         alignItems: 'center',
-        gap: horizontalScale(12),
+        gap: horizontalScale(10),
     },
     playButton: {
-        width: horizontalScale(44),
-        height: horizontalScale(44),
+        width: horizontalScale(30),
+        height: horizontalScale(30),
         borderRadius: horizontalScale(22),
+        marginBottom: verticalScale(10),
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
         alignItems: 'center',
         justifyContent: 'center',
@@ -334,7 +389,6 @@ const styles = StyleSheet.create({
     },
     progressContainer: {
         flex: 1,
-        gap: verticalScale(4),
     },
     progressBar: {
         height: verticalScale(20),
@@ -346,6 +400,7 @@ const styles = StyleSheet.create({
         borderRadius: horizontalScale(2),
         position: 'relative',
         overflow: 'visible',
+        transform: [{ scaleX: -1 }], // Flip to make progress go left to right
     },
     progressFill: {
         height: '100%',
@@ -366,7 +421,7 @@ const styles = StyleSheet.create({
         marginLeft: -horizontalScale(6),
     },
     progressKnobMine: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '',
     },
     progressKnobClient: {
         backgroundColor: colors.primaryDark,
@@ -374,7 +429,7 @@ const styles = StyleSheet.create({
     timeMine: {
         fontSize: ScaleFontSize(11),
         color: 'rgba(255, 255, 255, 0.8)',
-        textAlign: 'right',
+        textAlign: 'left',
     },
     timeClient: {
         fontSize: ScaleFontSize(11),
@@ -382,7 +437,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
     },
     metaRow: {
-        flexDirection: 'row',
+        flexDirection: 'row-reverse',
         alignItems: 'center',
         gap: horizontalScale(4),
         marginTop: verticalScale(4),

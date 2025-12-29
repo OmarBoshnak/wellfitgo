@@ -714,6 +714,9 @@ export const getClientSettings = query({
                 }
                 : null,
 
+            // Chat Doctor Assignment
+            assignedChatDoctor: client.assignedChatDoctorId ?? null,
+
             // Account
             isActive: client.isActive,
             createdAt: client.createdAt,

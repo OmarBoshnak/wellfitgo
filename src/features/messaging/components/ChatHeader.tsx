@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/src/core/constants/Themes';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { ChatConversation } from './types';
+import { isRTL } from '@/src/core/i18n';
 
 // Arabic translations
 const t = {
@@ -16,24 +17,37 @@ interface Props {
     conversation: ChatConversation;
     onBack: () => void;
     onOptions: () => void;
+    onProfilePress?: () => void;
 }
 
-const ChatHeader = React.memo(function ChatHeader({ conversation, onBack, onOptions }: Props) {
+const ChatHeader = React.memo(function ChatHeader({ conversation, onBack, onOptions, onProfilePress }: Props) {
     const insets = useSafeAreaInsets();
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top > 0 ? insets.top : verticalScale(12) }]}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             {/* RTL Layout: Back on left, options on right */}
             <View style={styles.content}>
                 {/* Right: Back Button (RTL) */}
                 <TouchableOpacity style={styles.iconButton} onPress={onBack}>
-                    <MaterialIcons name="arrow-forward" size={24} color={colors.textPrimary} />
+                    <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
 
-                {/* Center: User Info */}
-                <View style={styles.userInfo}>
+                {/* User Info - Touchable to navigate to profile */}
+                <TouchableOpacity
+                    style={[styles.userInfo, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
+                    onPress={onProfilePress}
+                    activeOpacity={0.7}
+                >
                     <View style={styles.avatarContainer}>
-                        <Image source={{ uri: conversation.avatar }} style={styles.avatar} />
+                        {conversation.avatar ? (
+                            <Image source={{ uri: conversation.avatar }} style={styles.avatar} />
+                        ) : (
+                            <View style={[styles.avatar, styles.avatarFallback]}>
+                                <Text style={styles.avatarInitial}>
+                                    {conversation.name?.charAt(0)?.toUpperCase() || '?'}
+                                </Text>
+                            </View>
+                        )}
                         {conversation.isOnline && <View style={styles.onlineDot} />}
                     </View>
                     <View style={styles.textContainer}>
@@ -45,11 +59,6 @@ const ChatHeader = React.memo(function ChatHeader({ conversation, onBack, onOpti
                             </Text>
                         </View>
                     </View>
-                </View>
-
-                {/* Left: Options Button (RTL) */}
-                <TouchableOpacity style={styles.iconButton} onPress={onOptions}>
-                    <MaterialIcons name="more-vert" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
         </View>
@@ -72,7 +81,6 @@ const styles = StyleSheet.create({
     content: {
         flexDirection: 'row-reverse', // RTL
         alignItems: 'center',
-        justifyContent: 'space-between',
         paddingHorizontal: horizontalScale(8),
         paddingVertical: verticalScale(12),
     },
@@ -85,7 +93,6 @@ const styles = StyleSheet.create({
     },
     userInfo: {
         flex: 1,
-        flexDirection: 'row-reverse', // RTL
         alignItems: 'center',
         paddingHorizontal: horizontalScale(8),
         gap: horizontalScale(12),
@@ -112,7 +119,7 @@ const styles = StyleSheet.create({
         borderColor: colors.bgPrimary,
     },
     textContainer: {
-        alignItems: 'flex-end', // RTL
+        alignItems: 'flex-start', // RTL
     },
     userName: {
         fontSize: ScaleFontSize(16),
@@ -121,7 +128,7 @@ const styles = StyleSheet.create({
         textAlign: 'right',
     },
     statusRow: {
-        flexDirection: 'row-reverse', // RTL
+        flexDirection: 'row', // RTL
         alignItems: 'center',
         gap: horizontalScale(4),
         marginTop: verticalScale(2),
@@ -134,5 +141,16 @@ const styles = StyleSheet.create({
     statusText: {
         fontSize: ScaleFontSize(12),
         fontWeight: '500',
+    },
+    avatarFallback: {
+        backgroundColor: colors.primaryDark,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 0,
+    },
+    avatarInitial: {
+        fontSize: ScaleFontSize(16),
+        fontWeight: '600',
+        color: '#FFFFFF',
     },
 });

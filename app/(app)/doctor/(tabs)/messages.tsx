@@ -86,12 +86,13 @@ export default function MessagesScreen() {
             avatar: conv.client?.avatarUrl || null,
             lastMessage: conv.lastMessagePreview || '',
             unreadCount: conv.unreadByCoach || 0,
-            isOnline: false,
+            isOnline: conv.client?.isOnline ?? false,
             category: 'client' as const,
             timestamp: conv.lastMessageAt ? formatTimestamp(conv.lastMessageAt) : '',
             isPinned: conv.isPinned,
             priority: conv.priority,
             conversationId: conv._id,
+            clientId: conv.clientId, // Add clientId for profile navigation
         }));
     }, [conversations]);
 
@@ -128,6 +129,7 @@ export default function MessagesScreen() {
         setSelectedConversation({
             id: message.id,
             conversationId: message.conversationId,
+            clientId: message.clientId, // Pass clientId for profile navigation
             name: message.name,
             avatar: message.avatar || '',
             isOnline: message.isOnline,
@@ -177,8 +179,8 @@ export default function MessagesScreen() {
     if (isLoading) {
         return (
             <GestureHandlerRootView style={{ flex: 1 }}>
-                <SafeAreaView edges={['top']} style={styles.container}>
-                    <View style={styles.header}>
+                <SafeAreaView edges={['left', 'right']} style={styles.container}>
+                    <View style={[styles.header, { paddingTop: insets.top }]}>
                         <Text style={styles.title}>{t.title}</Text>
                     </View>
                     <View style={styles.loadingContainer}>
@@ -192,9 +194,9 @@ export default function MessagesScreen() {
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <SafeAreaView edges={['top']} style={styles.container}>
+            <SafeAreaView edges={['left', 'right']} style={styles.container}>
                 {/* Header - RTL Layout */}
-                <View style={styles.header}>
+                <View style={[styles.header, { paddingTop: insets.top }]}>
                     <View style={styles.headerTop}>
                         {/* Search toggle on Left (RTL) */}
                         <TouchableOpacity

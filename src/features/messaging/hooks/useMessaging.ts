@@ -13,13 +13,14 @@ export type InboxFilter = 'all' | 'unread' | 'pinned' | 'urgent';
 
 /**
  * Get coach inbox with real-time updates
- * For doctor/coach app - shows all client conversations
+ * For doctor/coach app - shows all client conversations assigned to them
+ * Uses new getCoachInbox query with role-based filtering
  */
 export function useCoachInbox(filter: InboxFilter = 'all') {
-    // Get all conversations for the coach
-    const conversations = useQuery(api.chat.getMyConversation);
+    // Use new getCoachInbox query with server-side filtering
+    const conversations = useQuery(api.chat.getCoachInbox, { filter });
 
-    if (!conversations || !Array.isArray(conversations)) {
+    if (!conversations || conversations.length === 0) {
         return {
             conversations: [],
             isLoading: conversations === undefined,
@@ -27,32 +28,6 @@ export function useCoachInbox(filter: InboxFilter = 'all') {
             oldestUnread: null,
         };
     }
-
-    // Apply client-side filters
-    let filtered = conversations;
-    if (filter === 'unread') {
-        filtered = conversations.filter((c: any) => c.unreadByCoach > 0);
-    } else if (filter === 'pinned') {
-        filtered = conversations.filter((c: any) => c.isPinned);
-    } else if (filter === 'urgent') {
-        filtered = conversations.filter((c: any) => c.priority === 'urgent');
-    }
-
-    // Sort: pinned first, then priority, then by last message
-    const sorted = [...filtered].sort((a: any, b: any) => {
-        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-        if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
-        if (b.priority === 'urgent' && a.priority !== 'urgent') return 1;
-        return b.lastMessageAt - a.lastMessageAt;
-    });
-
-    // Find the oldest unread conversation (smallest lastMessageAt among unread)
-    const unreadConversations = conversations.filter((c: any) => c.unreadByCoach > 0);
-    const oldestUnreadConv = unreadConversations.length > 0
-        ? unreadConversations.reduce((oldest: any, current: any) =>
-            current.lastMessageAt < oldest.lastMessageAt ? current : oldest
-        )
-        : null;
 
     // Calculate relative time for oldest unread message
     const getRelativeTime = (timestamp: number): string => {
@@ -69,8 +44,16 @@ export function useCoachInbox(filter: InboxFilter = 'all') {
         return `${Math.floor(days / 7)}w ago`;
     };
 
+    // Find the oldest unread conversation
+    const unreadConversations = conversations.filter((c: any) => c.unreadByCoach > 0);
+    const oldestUnreadConv = unreadConversations.length > 0
+        ? unreadConversations.reduce((oldest: any, current: any) =>
+            current.lastMessageAt < oldest.lastMessageAt ? current : oldest
+        )
+        : null;
+
     return {
-        conversations: sorted,
+        conversations, // Already sorted and filtered by server
         isLoading: false,
         totalUnread: conversations.reduce((sum: number, c: any) => sum + (c.unreadByCoach || 0), 0),
         // Oldest unread info for dashboard display

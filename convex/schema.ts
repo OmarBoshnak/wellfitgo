@@ -58,7 +58,8 @@ export default defineSchema({
             v.literal("mostafa"),
             v.literal("none")
         )),
-        assignedCoachId: v.optional(v.id("users")), // Reference to coach user (for detailed lookup)
+        assignedCoachId: v.optional(v.id("users")), // Reference to diet/workout coach
+        assignedChatDoctorId: v.optional(v.id("users")), // Reference to chat consultation doctor (may differ from coach)
         subscriptionStatus: v.union(
             v.literal("active"),
             v.literal("paused"),
@@ -110,6 +111,7 @@ export default defineSchema({
         .index("by_clerk_id", ["clerkId"])
         .index("by_role", ["role"])
         .index("by_assigned_coach", ["assignedCoachId"])
+        .index("by_assigned_chat_doctor", ["assignedChatDoctorId"])
         .index("by_subscription_status", ["subscriptionStatus"]),
 
     // ============ CLIENT NOTES (Coach notes history) ============

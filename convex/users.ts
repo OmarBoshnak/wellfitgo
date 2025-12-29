@@ -772,7 +772,8 @@ export const getUsersByRole = query({
     },
     handler: async (ctx, args) => {
         const currentUser = await getCurrentUser(ctx);
-        if (!currentUser || currentUser.role !== "admin") {
+        // Allow both admins and coaches to query users
+        if (!currentUser || (currentUser.role !== "admin" && currentUser.role !== "coach")) {
             return [];
         }
 
@@ -864,5 +865,119 @@ export const getClientsByAssignedDoctor = query({
             assignedDoctor: client.assignedDoctor,
             createdAt: client.createdAt,
         }));
+    },
+});
+
+/**
+ * Admin and Coach: Assign a chat doctor to a client
+ * Handles reassignment by archiving old conversation and creating/reactivating new one
+ * Idempotent: same doctor assignment is a no-op
+ */
+export const assignChatDoctor = mutation({
+    args: {
+        clientId: v.id("users"),
+        doctorId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const currentUser = await requireAuth(ctx);
+
+        // Allow both admins and coaches to assign chat doctors
+        if (currentUser.role !== "admin" && currentUser.role !== "coach") {
+            throw new Error("Only admins and coaches can assign chat doctors");
+        }
+
+        // Verify client exists and is a client
+        const client = await ctx.db.get(args.clientId);
+        if (!client) {
+            throw new Error("Client not found");
+        }
+        if (client.role !== "client") {
+            throw new Error("Can only assign doctors to clients");
+        }
+
+        // Verify doctor exists and is a coach
+        const doctor = await ctx.db.get(args.doctorId);
+        if (!doctor) {
+            throw new Error("Doctor not found");
+        }
+        if (doctor.role !== "coach") {
+            throw new Error("Selected user is not a doctor/coach");
+        }
+
+        // Check if already assigned to this doctor (idempotent)
+        if (client.assignedChatDoctorId === args.doctorId) {
+            return {
+                success: true,
+                message: "Client is already assigned to this doctor",
+                conversationId: null,
+            };
+        }
+
+        const now = Date.now();
+
+        // ===== Handle Reassignment: Archive old conversation =====
+        if (client.assignedChatDoctorId) {
+            // Find existing active conversation with old doctor
+            const oldConversation = await ctx.db
+                .query("conversations")
+                .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+                .filter((q) =>
+                    q.and(
+                        q.eq(q.field("coachId"), client.assignedChatDoctorId),
+                        q.eq(q.field("status"), "active")
+                    )
+                )
+                .first();
+
+            if (oldConversation) {
+                // Archive the old conversation
+                await ctx.db.patch(oldConversation._id, {
+                    status: "archived",
+                });
+            }
+        }
+
+        // ===== Update client's assigned chat doctor =====
+        await ctx.db.patch(args.clientId, {
+            assignedChatDoctorId: args.doctorId,
+            updatedAt: now,
+        });
+
+        // ===== Create or reactivate conversation with new doctor =====
+        // Check if archived conversation exists with new doctor
+        const existingConversation = await ctx.db
+            .query("conversations")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .filter((q) => q.eq(q.field("coachId"), args.doctorId))
+            .first();
+
+        let conversationId;
+
+        if (existingConversation) {
+            // Reactivate existing conversation
+            await ctx.db.patch(existingConversation._id, {
+                status: "active",
+            });
+            conversationId = existingConversation._id;
+        } else {
+            // Create new conversation
+            conversationId = await ctx.db.insert("conversations", {
+                clientId: args.clientId,
+                coachId: args.doctorId,
+                status: "active",
+                lastMessageAt: now,
+                unreadByClient: 0,
+                unreadByCoach: 0,
+                isPinned: false,
+                priority: "normal",
+                createdAt: now,
+            });
+        }
+
+        return {
+            success: true,
+            message: `Assigned ${client.firstName} to Dr. ${doctor.firstName}`,
+            conversationId,
+        };
     },
 });

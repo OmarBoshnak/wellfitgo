@@ -1,6 +1,10 @@
 import { Stack } from 'expo-router';
+import { useAppStateTracking } from '@/src/core/hooks/useAppState';
 
 export default function AppLayout() {
+    // Track app state for online/offline status
+    useAppStateTracking();
+
     return (
         <Stack
             screenOptions={{

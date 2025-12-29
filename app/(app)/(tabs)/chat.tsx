@@ -21,6 +21,7 @@ import { isRTL } from '@/src/core/constants/translations';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import * as ImagePicker from 'expo-image-picker';
+import VoiceMessageBubble from '@/src/features/messaging/components/VoiceMessageBubble';
 
 const ChatScreen = () => {
     const insets = useSafeAreaInsets();
@@ -33,6 +34,17 @@ const ChatScreen = () => {
     const conversation = useQuery(api.chat.getMyConversation);
     const conversationId = conversation && !Array.isArray(conversation) ? conversation._id : undefined;
     const messages = useQuery(api.chat.getMessages, conversationId ? { conversationId } : "skip");
+
+    // Get assigned chat doctor info for header display
+    const chatDoctor = useQuery(api.chat.getMyChatDoctor);
+
+    // Get current user for subscription status check
+    const currentUser = useQuery(api.users.getMe);
+    const currentUserId = currentUser?._id;
+
+    // Check if subscription allows chatting
+    const isSubscriptionActive = currentUser?.subscriptionStatus === 'active' || currentUser?.subscriptionStatus === 'trial';
+    const canSendMessages = isSubscriptionActive && !!chatDoctor && !!conversationId;
 
     const sendMessageMutation = useMutation(api.chat.sendMessage);
     const generateUploadUrl = useMutation(api.chat.generateUploadUrl);
@@ -133,9 +145,7 @@ const ChatScreen = () => {
         // TODO: Implement actual voice recording
     };
 
-    // Get current user ID for message alignment
-    const currentUser = useQuery(api.users.getMe);
-    const currentUserId = currentUser?._id;
+    // Doctor display info - use real data or fallback
 
     const formatTime = (timestamp: number) => {
         return new Date(timestamp).toLocaleTimeString('en-US', {
@@ -175,21 +185,46 @@ const ChatScreen = () => {
             <View style={[styles.header, { paddingTop: insets.top, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                 <View style={[styles.headerContent, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <View style={styles.avatarContainer}>
-                        <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>S</Text>
-                        </View>
+                        {chatDoctor?.avatarUrl ? (
+                            <Image source={{ uri: chatDoctor.avatarUrl }} style={styles.avatarImage} />
+                        ) : (
+                            <View style={styles.avatar}>
+                                <Text style={styles.avatarText}>
+                                    {chatDoctor?.firstName?.charAt(0) || (isRTL ? 'د' : 'D')}
+                                </Text>
+                            </View>
+                        )}
                         <View style={styles.onlineIndicator} />
                     </View>
                     <View style={styles.headerInfo}>
                         <Text style={[styles.headerName, isRTL && styles.textRTL]}>
-                            {isRTL ? 'سارة أحمد' : 'Sarah Ahmed'}
+                            {chatDoctor
+                                ? `${isRTL ? 'د.' : 'Dr.'} ${chatDoctor.firstName} ${chatDoctor.lastName || ''}`.trim()
+                                : (isRTL ? 'فريق الدعم' : 'Support Team')
+                            }
                         </Text>
                         <Text style={[styles.headerStatus, isRTL && styles.textRTL]}>
-                            {isRTL ? 'عادة ترد خلال ساعتين' : 'Usually replies within 2 hours'}
+                            {!chatDoctor
+                                ? (isRTL ? 'في انتظار تعيين طبيب' : 'Waiting for doctor assignment')
+                                : (isRTL ? 'عادة يرد خلال ساعتين' : 'Usually replies within 2 hours')
+                            }
                         </Text>
                     </View>
                 </View>
             </View>
+
+            {/* Subscription Gating Banner */}
+            {!isSubscriptionActive && (
+                <View style={styles.subscriptionBanner}>
+                    <Ionicons name="warning" size={20} color={colors.warning} />
+                    <Text style={styles.subscriptionBannerText}>
+                        {isRTL
+                            ? 'اشتراكك غير نشط. جدد اشتراكك للمتابعة'
+                            : 'Your subscription is not active. Renew to continue chatting'
+                        }
+                    </Text>
+                </View>
+            )}
 
             {/* Messages Area */}
             <ScrollView
@@ -222,9 +257,32 @@ const ChatScreen = () => {
                 )}
 
                 {/* Messages list */}
+
                 {messages && messages.map((msg) => {
                     const isUser = msg.senderId === currentUserId;
                     const isRead = isUser ? msg.isReadByCoach : msg.isReadByClient;
+
+                    // Voice Message
+                    if (msg.messageType === 'voice') {
+                        return (
+                            <View
+                                key={msg._id}
+                                style={[
+                                    styles.messageRow,
+                                    isUser ? (isRTL ? styles.rowLeft : styles.rowRight) : (isRTL ? styles.rowRight : styles.rowLeft)
+                                ]}
+                            >
+                                <VoiceMessageBubble
+                                    id={msg._id}
+                                    audioUri={msg.mediaUrl || msg.content}
+                                    duration={msg.mediaDuration || 0}
+                                    isMine={isUser}
+                                    timestamp={formatTime(msg.createdAt)}
+                                />
+                            </View>
+                        );
+                    }
+
                     return (
                         <View
                             key={msg._id}
@@ -274,39 +332,44 @@ const ChatScreen = () => {
             </ScrollView>
 
             {/* Input Area */}
-            <View style={[styles.inputContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+            <View style={[styles.inputContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }, !canSendMessages && styles.inputContainerDisabled]}>
                 <TouchableOpacity
                     style={styles.iconButton}
                     onPress={handlePickImage}
-                    disabled={isUploading || !conversationId}
+                    disabled={isUploading || !canSendMessages}
                 >
                     {isUploading ? (
                         <ActivityIndicator size="small" color={colors.textSecondary} />
                     ) : (
-                        <Ionicons name="attach" size={24} color={colors.textSecondary} />
+                        <Ionicons name="attach" size={24} color={!canSendMessages ? colors.border : colors.textSecondary} />
                     )}
                 </TouchableOpacity>
 
-                <View style={styles.inputWrapper}>
+                <View style={[styles.inputWrapper, !canSendMessages && styles.inputWrapperDisabled]}>
                     <TextInput
                         value={message}
                         onChangeText={setMessage}
-                        placeholder={isRTL ? 'اكتب رسالتك...' : 'Type your message...'}
+                        placeholder={!canSendMessages
+                            ? (isRTL ? 'الدردشة غير متاحة حالياً' : 'Chat is currently unavailable')
+                            : (isRTL ? 'اكتب رسالتك...' : 'Type your message...')
+                        }
                         placeholderTextColor={colors.textSecondary}
                         style={[styles.textInput, isRTL && styles.textInputRTL]}
                         multiline
                         onFocus={() => setShowEmojiPicker(false)}
+                        editable={canSendMessages}
                     />
                 </View>
 
                 <TouchableOpacity
                     style={styles.iconButton}
                     onPress={toggleEmojiPicker}
+                    disabled={!canSendMessages}
                 >
                     <Ionicons
                         name={showEmojiPicker ? "keypad-outline" : "happy-outline"}
                         size={24}
-                        color={showEmojiPicker ? colors.primaryDark : colors.textSecondary}
+                        color={showEmojiPicker ? colors.primaryDark : (!canSendMessages ? colors.border : colors.textSecondary)}
                     />
                 </TouchableOpacity>
 
@@ -314,8 +377,9 @@ const ChatScreen = () => {
                     onPress={isTyping ? handleSend : handleVoiceNote}
                     style={[
                         styles.sendButton,
-                        isTyping ? styles.sendButtonActive : styles.sendButtonActive // Use active style for mic too, or same color
+                        canSendMessages && isTyping ? styles.sendButtonActive : styles.sendButtonDisabled
                     ]}
+                    disabled={!canSendMessages || !isTyping}
                 >
                     <Ionicons
                         name={isTyping ? "send" : "mic"}
@@ -570,6 +634,32 @@ const styles = StyleSheet.create({
     },
     emojiText: {
         fontSize: 28,
+    },
+    avatarImage: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+    },
+    subscriptionBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.warning + '20',
+        paddingVertical: verticalScale(10),
+        paddingHorizontal: horizontalScale(16),
+        gap: 8,
+    },
+    subscriptionBannerText: {
+        fontSize: ScaleFontSize(13),
+        color: colors.textPrimary,
+        flex: 1,
+        textAlign: 'center',
+    },
+    inputContainerDisabled: {
+        opacity: 0.6,
+    },
+    inputWrapperDisabled: {
+        backgroundColor: colors.border,
     },
 });
 

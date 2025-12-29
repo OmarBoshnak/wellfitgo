@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Modal } from 'react-native';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useRouter } from 'expo-router';
-import { Crown, Bell, User, AlertTriangle } from 'lucide-react-native';
+import { Crown, Bell, User, AlertTriangle, MessageCircle, Check } from 'lucide-react-native';
 import { colors } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
@@ -16,15 +16,30 @@ interface SettingsTabProps {
     clientId: Id<"users">;
 }
 
+// Doctor options
+const DOCTORS = [
+    { id: 'gehad', name: isRTL ? 'د. جيهاد' : 'Dr. Gehad', nameEn: 'Gehad' },
+    { id: 'mostafa', name: isRTL ? 'د. مصطفى' : 'Dr. Mostafa', nameEn: 'Mostafa' },
+];
+
 // ============ COMPONENT ============
 
 export function SettingsTab({ clientId }: SettingsTabProps) {
     const router = useRouter();
     const settings = useQuery(api.clientProfile.getClientSettings, { clientId });
+    const currentUser = useQuery(api.users.getMe);
     const updateNotifications = useMutation(api.clientProfile.updateClientNotifications);
     const archiveClientMutation = useMutation(api.clientProfile.archiveClient);
+    const assignChatDoctorMutation = useMutation(api.users.assignChatDoctor);
+
+    // Get doctors list for assignment
+    const doctors = useQuery(api.users.getUsersByRole, { role: 'coach' });
 
     const [isSaving, setIsSaving] = useState(false);
+    const [showDoctorModal, setShowDoctorModal] = useState(false);
+    const [isAssigning, setIsAssigning] = useState(false);
+
+    const isAdmin = currentUser?.role === 'coach';
 
     const getSubscriptionLabel = (status: string): { label: string; color: string; bg: string } => {
         const configs: Record<string, { label: string; color: string; bg: string }> = {
@@ -68,6 +83,32 @@ export function SettingsTab({ clientId }: SettingsTabProps) {
         );
     };
 
+    const handleAssignDoctor = async (doctorId: Id<"users">) => {
+        setIsAssigning(true);
+        try {
+            const result = await assignChatDoctorMutation({ clientId, doctorId });
+            setShowDoctorModal(false);
+            Alert.alert(
+                isRTL ? 'تم التعيين' : 'Assigned',
+                result.message
+            );
+        } catch (error: any) {
+            Alert.alert(
+                isRTL ? 'خطأ' : 'Error',
+                error.message || (isRTL ? 'فشل التعيين' : 'Failed to assign doctor')
+            );
+        }
+        setIsAssigning(false);
+    };
+
+    // Get currently assigned doctor name
+    const getAssignedDoctorName = (): string => {
+        if (!settings?.assignedChatDoctor) return isRTL ? 'غير معين' : 'Not Assigned';
+        const foundDoctor = doctors?.find(d => d._id === settings.assignedChatDoctor);
+        if (foundDoctor) return `${isRTL ? 'د.' : 'Dr.'} ${foundDoctor.firstName}`;
+        return isRTL ? 'غير معين' : 'Not Assigned';
+    };
+
     // Loading
     if (settings === undefined) {
         return (
@@ -106,6 +147,44 @@ export function SettingsTab({ clientId }: SettingsTabProps) {
                     </View>
                 </View>
             </View>
+
+            {/* Assign Chat Doctor Section - Admin Only */}
+            {isAdmin && (
+                <View style={styles.section}>
+                    <View style={[styles.sectionHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                        <MessageCircle size={20} color={colors.primaryDark} />
+                        <Text style={styles.sectionTitle}>{isRTL ? 'طبيب الدردشة' : 'Chat Doctor'}</Text>
+                    </View>
+                    <View style={styles.card}>
+                        <View style={[styles.row, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                            <Text style={styles.label}>{isRTL ? 'الطبيب المعين' : 'Assigned Doctor'}</Text>
+                            <View style={[
+                                styles.badge,
+                                { backgroundColor: settings.assignedChatDoctor ? '#DCFCE7' : '#FEF3C7' }
+                            ]}>
+                                <Text style={[
+                                    styles.badgeText,
+                                    { color: settings.assignedChatDoctor ? '#16A34A' : '#F59E0B' }
+                                ]}>
+                                    {getAssignedDoctorName()}
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.divider} />
+                        <TouchableOpacity
+                            style={styles.assignButton}
+                            onPress={() => setShowDoctorModal(true)}
+                        >
+                            <Text style={styles.assignButtonText}>
+                                {settings.assignedChatDoctor
+                                    ? (isRTL ? 'تغيير الطبيب' : 'Change Doctor')
+                                    : (isRTL ? 'تعيين طبيب' : 'Assign Doctor')
+                                }
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
 
             {/* Notifications Section */}
             <View style={styles.section}>
@@ -159,17 +238,17 @@ export function SettingsTab({ clientId }: SettingsTabProps) {
                 </View>
             </View>
 
-            {/* Coach Section */}
-            {settings.coach && (
+            {/* Doctor Section - Show assigned doctor */}
+            {settings.assignedChatDoctor && (
                 <View style={styles.section}>
                     <View style={[styles.sectionHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <User size={20} color={colors.primaryDark} />
-                        <Text style={styles.sectionTitle}>Coach</Text>
+                        <Text style={styles.sectionTitle}>{isRTL ? 'الطبيب' : 'Doctor'}</Text>
                     </View>
                     <View style={styles.card}>
                         <View style={[styles.row, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                            <Text style={styles.label}>Assigned Coach</Text>
-                            <Text style={styles.value}>{settings.coach.name}</Text>
+                            <Text style={styles.label}>{isRTL ? 'الطبيب المعين' : 'Assigned Doctor'}</Text>
+                            <Text style={styles.value}>{getAssignedDoctorName()}</Text>
                         </View>
                     </View>
                 </View>
@@ -196,6 +275,66 @@ export function SettingsTab({ clientId }: SettingsTabProps) {
                     </View>
                 </View>
             </View>
+
+            {/* Doctor Selection Modal */}
+            <Modal
+                visible={showDoctorModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowDoctorModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>
+                            {isRTL ? 'اختر الطبيب' : 'Select Doctor'}
+                        </Text>
+
+                        {isAssigning ? (
+                            <ActivityIndicator size="large" color={colors.primaryDark} style={{ marginVertical: 20 }} />
+                        ) : (
+                            <>
+                                {/* Show all available coaches */}
+                                {doctors?.map((doctor) => (
+                                    <TouchableOpacity
+                                        key={doctor._id}
+                                        style={[
+                                            styles.doctorOption,
+                                            settings.assignedChatDoctor === doctor._id && styles.doctorOptionSelected
+                                        ]}
+                                        onPress={() => handleAssignDoctor(doctor._id)}
+                                    >
+                                        <Text style={[
+                                            styles.doctorOptionText,
+                                            settings.assignedChatDoctor === doctor._id && styles.doctorOptionTextSelected
+                                        ]}>
+                                            {isRTL ? 'د.' : 'Dr.'} {doctor.firstName} {doctor.lastName || ''}
+                                        </Text>
+                                        {settings.assignedChatDoctor === doctor._id && (
+                                            <Check size={20} color={colors.primaryDark} />
+                                        )}
+                                    </TouchableOpacity>
+                                ))}
+
+                                {/* Fallback if no doctors found */}
+                                {(!doctors || doctors.length === 0) && (
+                                    <Text style={styles.noDataText}>
+                                        {isRTL ? 'لا يوجد أطباء متاحين' : 'No doctors available'}
+                                    </Text>
+                                )}
+                            </>
+                        )}
+
+                        <TouchableOpacity
+                            style={styles.modalCancelButton}
+                            onPress={() => setShowDoctorModal(false)}
+                        >
+                            <Text style={styles.modalCancelText}>
+                                {isRTL ? 'إلغاء' : 'Cancel'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -306,5 +445,78 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         fontWeight: '600',
         color: '#FFFFFF',
+    },
+    assignButton: {
+        backgroundColor: colors.primaryDark,
+        paddingVertical: verticalScale(12),
+        borderRadius: horizontalScale(8),
+        alignItems: 'center',
+        marginTop: verticalScale(4),
+    },
+    assignButtonText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: horizontalScale(24),
+    },
+    modalContent: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: horizontalScale(16),
+        padding: horizontalScale(20),
+        width: '100%',
+        maxWidth: 320,
+    },
+    modalTitle: {
+        fontSize: ScaleFontSize(18),
+        fontWeight: '700',
+        color: colors.textPrimary,
+        textAlign: 'center',
+        marginBottom: verticalScale(20),
+    },
+    doctorOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: verticalScale(14),
+        paddingHorizontal: horizontalScale(16),
+        borderRadius: horizontalScale(12),
+        borderWidth: 1,
+        borderColor: colors.border,
+        marginBottom: verticalScale(10),
+    },
+    doctorOptionSelected: {
+        borderColor: colors.primaryDark,
+        backgroundColor: colors.primaryDark + '10',
+    },
+    doctorOptionText: {
+        fontSize: ScaleFontSize(16),
+        fontWeight: '500',
+        color: colors.textPrimary,
+    },
+    doctorOptionTextSelected: {
+        color: colors.primaryDark,
+        fontWeight: '600',
+    },
+    modalCancelButton: {
+        paddingVertical: verticalScale(12),
+        alignItems: 'center',
+        marginTop: verticalScale(8),
+    },
+    modalCancelText: {
+        fontSize: ScaleFontSize(15),
+        color: colors.textSecondary,
+    },
+    noDataText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        textAlign: 'center',
+        paddingVertical: verticalScale(16),
     },
 });

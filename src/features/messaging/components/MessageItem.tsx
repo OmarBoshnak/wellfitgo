@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { SharedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '@/src/core/constants/Themes';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
+import { isRTL } from '@/src/core/i18n';
 
 // Arabic translations for swipe actions
 const t = {
@@ -22,6 +24,7 @@ export interface Message {
     category: 'client' | 'team';
     timestamp: string;
     conversationId?: string; // Convex conversation ID
+    clientId?: string; // Client user ID for profile navigation
     isPinned?: boolean;
     priority?: 'normal' | 'high' | 'urgent';
 }
@@ -33,51 +36,80 @@ interface Props {
     onDelete: () => void;
 }
 
+// Action button component using Reanimated
+function ActionButton({
+    dragX,
+    outputRange,
+    style,
+    onPress,
+    iconName,
+    label
+}: {
+    dragX: SharedValue<number>;
+    outputRange: number;
+    style: object;
+    onPress: () => void;
+    iconName: 'delete' | 'archive';
+    label: string;
+}) {
+    const animatedStyle = useAnimatedStyle(() => {
+        const translateX = interpolate(
+            dragX.value,
+            [0, 140],
+            [outputRange, 0],
+            Extrapolation.CLAMP
+        );
+        return { transform: [{ translateX }] };
+    });
+
+    return (
+        <Animated.View style={[styles.actionButton, style, animatedStyle]}>
+            <TouchableOpacity style={styles.actionContent} onPress={onPress}>
+                <MaterialIcons name={iconName} size={24} color="#FFFFFF" />
+                <Text style={styles.actionText}>{label}</Text>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
+
 export default function MessageItem({ message, onPress, onArchive, onDelete }: Props) {
     const isUnread = message.unreadCount > 0;
 
     // RTL: Swipe actions on left side (swipe right to reveal)
     const renderLeftActions = (
-        progress: Animated.AnimatedInterpolation<number>,
-        dragX: Animated.AnimatedInterpolation<number>
+        _progress: SharedValue<number>,
+        dragX: SharedValue<number>
     ) => {
-        const translateArchive = dragX.interpolate({
-            inputRange: [0, 140],
-            outputRange: [-70, 0],
-            extrapolate: 'clamp',
-        });
-        const translateDelete = dragX.interpolate({
-            inputRange: [0, 140],
-            outputRange: [-140, 0],
-            extrapolate: 'clamp',
-        });
-
         return (
             <View style={styles.leftActionsContainer}>
-                <Animated.View style={[styles.actionButton, styles.deleteButton, { transform: [{ translateX: translateDelete }] }]}>
-                    <TouchableOpacity style={styles.actionContent} onPress={onDelete}>
-                        <MaterialIcons name="delete" size={24} color="#FFFFFF" />
-                        <Text style={styles.actionText}>{t.delete}</Text>
-                    </TouchableOpacity>
-                </Animated.View>
-                <Animated.View style={[styles.actionButton, styles.archiveButton, { transform: [{ translateX: translateArchive }] }]}>
-                    <TouchableOpacity style={styles.actionContent} onPress={onArchive}>
-                        <MaterialIcons name="archive" size={24} color="#FFFFFF" />
-                        <Text style={styles.actionText}>{t.archive}</Text>
-                    </TouchableOpacity>
-                </Animated.View>
+                <ActionButton
+                    dragX={dragX}
+                    outputRange={-140}
+                    style={styles.deleteButton}
+                    onPress={onDelete}
+                    iconName="delete"
+                    label={t.delete}
+                />
+                <ActionButton
+                    dragX={dragX}
+                    outputRange={-70}
+                    style={styles.archiveButton}
+                    onPress={onArchive}
+                    iconName="archive"
+                    label={t.archive}
+                />
             </View>
         );
     };
 
     return (
-        <Swipeable
+        <ReanimatedSwipeable
             renderLeftActions={renderLeftActions}
             overshootLeft={false}
             friction={2}
         >
             <TouchableOpacity
-                style={styles.container}
+                style={[styles.container, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
                 onPress={onPress}
                 activeOpacity={0.7}
             >
@@ -86,22 +118,22 @@ export default function MessageItem({ message, onPress, onArchive, onDelete }: P
 
                 {/* Content - RTL Layout: Avatar on right, text on left */}
                 <View style={styles.contentContainer}>
-                    <View style={styles.headerRow}>
-                        <Text style={styles.timestamp}>{message.timestamp}</Text>
+                    <View style={[styles.headerRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <Text
-                            style={[styles.name, isUnread && styles.nameUnread]}
+                            style={[styles.name, isUnread && styles.nameUnread, { textAlign: isRTL ? 'left' : 'right' }]}
                             numberOfLines={1}
                         >
                             {message.name}
                         </Text>
+                        <Text style={[styles.timestamp, { textAlign: isRTL ? 'left' : 'right' }]}>{message.timestamp}</Text>
                     </View>
-                    <View style={styles.messageRow}>
+                    <View style={[styles.messageRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         {isUnread && (
                             <View style={styles.unreadBadge}>
                                 <Text style={styles.unreadCount}>{message.unreadCount}</Text>
                             </View>
                         )}
-                        <Text style={styles.lastMessage} numberOfLines={2}>
+                        <Text style={[styles.lastMessage, { textAlign: isRTL ? 'left' : 'right' }]} numberOfLines={2}>
                             {message.lastMessage}
                         </Text>
                     </View>
@@ -119,13 +151,12 @@ export default function MessageItem({ message, onPress, onArchive, onDelete }: P
                     {message.isOnline && <View style={styles.onlineDot} />}
                 </View>
             </TouchableOpacity>
-        </Swipeable>
+        </ReanimatedSwipeable>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flexDirection: 'row-reverse', // RTL: Avatar on right
         alignItems: 'center',
         gap: horizontalScale(12),
         paddingHorizontal: horizontalScale(16),
@@ -181,12 +212,10 @@ const styles = StyleSheet.create({
     // Content
     contentContainer: {
         flex: 1,
-        justifyContent: 'center',
     },
     headerRow: {
-        flexDirection: 'row-reverse', // RTL
         justifyContent: 'space-between',
-        alignItems: 'baseline',
+        alignItems: 'center',
         marginBottom: verticalScale(2),
     },
     name: {
@@ -206,8 +235,6 @@ const styles = StyleSheet.create({
         color: '#AAB8C5',
     },
     messageRow: {
-        flexDirection: 'row-reverse', // RTL
-        justifyContent: 'space-between',
         alignItems: 'flex-start',
         gap: horizontalScale(8),
     },
