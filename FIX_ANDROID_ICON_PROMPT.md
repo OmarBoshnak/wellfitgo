@@ -1,27 +1,33 @@
-# Fix Android Adaptive Icon Cropping
+# Fix Android Adaptive Icon: Cropping & Corner Artifacts
 
 ## Context
-The user is reporting that the Android app icon looks "zoomed in" and cropped on their device.
-The text "WellFitGo" is cut off (appearing as "ell. it. Go!"), indicating a violation of the **Android Adaptive Icon Safe Zone**.
+The user is reporting two specific visual bugs with the App Icon on Android:
+1.  **Cropping:** The text "WellFitGo" is cut off (appearing as "ell. it. Go!"), violating the Adaptive Icon Safe Zone.
+2.  **Corner Artifacts:** The icon corners look faceted/clipped (like an octagon), indicating a "Double Masking" issue where the source image has pre-rounded corners.
 
-## Root Cause
-Android 8.0+ (Oreo) uses Adaptive Icons which consist of two layers (Foreground + Background) on a 108x108dp grid.
-*   **The Problem:** The current `assets/images/android-icon-foreground.png` likely has the logo extending to the edges of the image.
-*   **The Constraint:** Android launchers apply a mask (Circle, Squircle, etc.). The **Safe Zone** is only the central **66dp** (diameter) circle. Anything outside this central area is liable to be cropped.
+## Root Cause Analysis
+1.  **Safe Zone Violation:** Android Adaptive Icons (8.0+) enforce a 66dp central safe zone within a 108x108dp canvas. Content outside this circle is cropped.
+2.  **Double Masking:** If the source image (`icon.png` or `foreground.png`) already has transparent/rounded corners, the OS-level mask (Squircle/Circle) will clash with it, creating ugly gaps or "cut" corners.
 
-## Instructions
+## Instructions for the Designer / Agent
 
-You need to resize the content of the foreground image without changing the file dimensions (or create a new file with proper padding).
+You need to regenerate or modify the source assets (`assets/images/android-icon-foreground.png` and `assets/images/icon.png`) following these strict rules:
 
-### 1. Image Requirement (Foreground)
-*   **File:** `assets/images/android-icon-foreground.png`
-*   **Canvas Size:** Keep the original resolution (e.g., 1024x1024 or 512x512).
-*   **Logo Size:** Scale down the visible logo (text + graphic) so it occupies **only the center 50-60%** of the canvas.
-*   **Padding:** The outer 20-25% of the image on all sides must be **transparent**.
-*   *Visual Check:* Imagine a circle in the dead center that touches the 66% mark. Your text must fit entirely inside that circle.
+### 1. 🟥 Rule #1: FULL SQUARE (No Rounded Corners)
+*   **The Problem:** Do **NOT** round the corners of the source image.
+*   **The Fix:** The image file must be a **perfect square** with pixels extending all the way to the 4 corners (0,0 to width,height).
+*   **Why?** iOS and Android apply the rounding mask automatically. If you provide a pre-rounded image, you get the "faceted" artifact.
 
-### 2. Configuration Check (`app.json`)
-Ensure the `adaptiveIcon` config correctly points to the separate layers:
+### 2. 🎯 Rule #2: THE SAFE ZONE
+*   **Canvas Size:** Keep the resolution (e.g., 1024x1024 or 512x512).
+*   **Logo Placement:** The critical content (the text "WellFitGo" and the blue circle) must be **centered** and scaled down.
+*   **Scaling:**
+    *   The "Logo" part should occupy roughly **50% to 60%** of the total canvas width/height.
+    *   *Visual Test:* Draw a circle in the center that is 66% of the image size. **All text must fit inside this circle.**
+*   **Background:** The blue gradient background (if part of the foreground layer) should extend to the full edges of the square canvas (Bleed), OR if using a separate background layer, ensuring `android-icon-background.png` is a solid full-bleed square.
+
+### 3. Configuration Check (`app.json`)
+Ensure the config points to the corrected files:
 
 ```json
 "android": {
@@ -32,11 +38,8 @@ Ensure the `adaptiveIcon` config correctly points to the separate layers:
   }
 }
 ```
-*   *Note:* If `backgroundImage` is not a solid color but a file, ensure it effectively provides the "canvas" for the foreground to float over.
 
-### 3. Action Plan
-1.  **Modify** `assets/images/android-icon-foreground.png`: Add significant transparent padding around the "WellFitGo" logo.
-2.  **Verify**: If possible, generate a preview. The text "WellFitGo" should not touch the edges of the circle mask.
-
-### Reference
-> "Both layers must be sized at 108 x 108 dp. The inner 72 x 72 dp of the icon appears within the masked viewport. The system reserves the outer 18 dp on each of the 4 sides to create interesting visual effects, such as parallax or pulsing." - *Android Developer Documentation*
+### Summary Checklist for Success
+1.  [ ] Source image is a **Square** (no transparent corners).
+2.  [ ] Logo text is **Centered** and **Scaled Down** (fits in center 66%).
+3.  [ ] Background color/gradient fills the **Entire Canvas** (full bleed).
