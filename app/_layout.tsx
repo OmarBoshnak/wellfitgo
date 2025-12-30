@@ -11,6 +11,14 @@ import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { ConvexReactClient } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useQuery } from 'convex/react';
+import * as Sentry from '@sentry/react-native';
+import { AnalyticsProvider } from '@/src/core/providers/AnalyticsProvider';
+
+// Initialize Sentry
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  debug: __DEV__, // If `true`, Sentry will try to print out useful debugging information if something goes wrong with sending the event. Set it to `false` in production
+});
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
@@ -102,14 +110,16 @@ function LoadingView() {
     );
 }
 
-export default function RootLayout() {
+function RootLayout() {
     return (
         <Provider store={store}>
             <PersistGate loading={<LoadingView />} persistor={persistor}>
                 <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
                     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
                         <ClerkLoaded>
-                            <InitialLayout />
+                            <AnalyticsProvider>
+                                <InitialLayout />
+                            </AnalyticsProvider>
                         </ClerkLoaded>
                     </ConvexProviderWithClerk>
                 </ClerkProvider>
@@ -117,3 +127,5 @@ export default function RootLayout() {
         </Provider>
     );
 }
+
+export default Sentry.wrap(RootLayout);
