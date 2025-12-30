@@ -8,7 +8,7 @@ import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/
 export interface Client {
     id: string;
     name: string;
-    avatar: string;
+    avatar: string | null;
     status: string;
     statusType: 'critical' | 'warning' | 'info';
     lastActive?: string;
@@ -150,10 +150,22 @@ export function ClientsAttentionSection({
                         onPress={() => onClientPress(client.id)}
                         activeOpacity={0.7}
                     >
-                        <Image
-                            source={{ uri: client.avatar }}
-                            style={[styles.clientAvatar, isRTL ? { marginLeft: horizontalScale(12) } : { marginRight: horizontalScale(12) }]}
-                        />
+                        {client.avatar ? (
+                            <Image
+                                source={{ uri: client.avatar }}
+                                style={[styles.clientAvatar, isRTL ? { marginLeft: horizontalScale(12) } : { marginRight: horizontalScale(12) }]}
+                            />
+                        ) : (
+                            <View style={[
+                                styles.clientAvatar,
+                                styles.avatarFallback,
+                                isRTL ? { marginLeft: horizontalScale(12) } : { marginRight: horizontalScale(12) }
+                            ]}>
+                                <Text style={styles.avatarFallbackText}>
+                                    {client.name.charAt(0).toUpperCase()}
+                                </Text>
+                            </View>
+                        )}
                         <View style={styles.clientInfo}>
                             <View style={{ flexDirection: isRTL ? 'row' : 'row-reverse' }}>
                                 <Text style={[styles.clientName, { textAlign: isRTL ? 'right' : 'left' }]}>
@@ -234,6 +246,16 @@ const styles = StyleSheet.create({
         width: horizontalScale(44),
         height: horizontalScale(44),
         borderRadius: horizontalScale(22),
+    },
+    avatarFallback: {
+        backgroundColor: colors.primaryDark,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarFallbackText: {
+        fontSize: ScaleFontSize(16),
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
     clientInfo: {
         flex: 1,

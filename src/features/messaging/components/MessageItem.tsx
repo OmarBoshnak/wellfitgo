@@ -145,7 +145,9 @@ export default function MessageItem({ message, onPress, onArchive, onDelete }: P
                         <Image source={{ uri: message.avatar }} style={styles.avatar} />
                     ) : (
                         <View style={styles.initialsContainer}>
-                            <Text style={styles.initialsText}>{message.initials}</Text>
+                            <Text style={styles.initialsText}>
+                                {message.initials || message.name?.charAt(0)?.toUpperCase() || '?'}
+                            </Text>
                         </View>
                     )}
                     {message.isOnline && <View style={styles.onlineDot} />}

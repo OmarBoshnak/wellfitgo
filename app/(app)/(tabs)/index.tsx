@@ -5,12 +5,15 @@ import React from 'react';
 import {
     Dimensions,
     I18nManager,
+    Image,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { colors, gradients, shadows } from '@/src/core/constants/Themes';
@@ -42,9 +45,13 @@ const HomeScreen = () => {
     const [showCheckin, setShowCheckin] = useState(false);
     const [showWaterTracker, setShowWaterTracker] = useState(false);
 
+    // Get user data from Convex (for avatar)
+    const convexUser = useQuery(api.users.currentUser);
+
     // Get user data from Redux store
     const user = useAppSelector((state) => state.user);
-    const userName = user.firstName || homeTranslations.defaultName;
+    const userName = convexUser?.firstName || user.firstName || homeTranslations.defaultName;
+    const userAvatar = convexUser?.avatarUrl;
 
     // Water tracking data
     const waterIntake = useAppSelector(selectWaterIntake);
@@ -132,14 +139,23 @@ const HomeScreen = () => {
             <View style={[styles.container]}>
                 {/* Header */}
                 <View style={[styles.header, isRTL && styles.headerRTL, { paddingTop: insets.top }]}>
-                    <LinearGradient
-                        colors={gradients.primary}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.avatarButton}
-                    >
-                        <Text style={styles.avatarText}>A</Text>
-                    </LinearGradient>
+                    {userAvatar ? (
+                        <Image
+                            source={{ uri: userAvatar }}
+                            style={styles.avatarImage}
+                        />
+                    ) : (
+                        <LinearGradient
+                            colors={gradients.primary}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.avatarButton}
+                        >
+                            <Text style={styles.avatarText}>
+                                {userName.charAt(0).toUpperCase()}
+                            </Text>
+                        </LinearGradient>
+                    )}
                     <View>
                         <Text style={styles.greeting}>
                             {greeting} , {userName} 👋
@@ -324,6 +340,12 @@ const styles = StyleSheet.create({
         borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
+        ...shadows.medium,
+    },
+    avatarImage: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         ...shadows.medium,
     },
     textRTL: {

@@ -46,7 +46,7 @@ export const useClerkAuth = () => {
             setLoading(true);
             setError(null);
 
-            const redirectUrl = Linking.createURL('');
+            const redirectUrl = Linking.createURL('/(auth)/LoginScreen');
             console.log('[Auth] Starting Google OAuth with redirectUrl:', redirectUrl);
 
             const result = await googleOAuth({ redirectUrl });
@@ -125,7 +125,7 @@ export const useClerkAuth = () => {
             setLoading(true);
             setError(null);
 
-            const redirectUrl = Linking.createURL('');
+            const redirectUrl = Linking.createURL('/(auth)/LoginScreen');
             console.log('[Auth] Starting Apple OAuth with redirectUrl:', redirectUrl);
 
             const result = await appleOAuth({ redirectUrl });

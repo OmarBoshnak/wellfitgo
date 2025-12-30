@@ -280,6 +280,178 @@ export const getClientActivity = query({
 });
 
 /**
+ * Get full activity history for a client (for full-screen timeline)
+ * No time limits, includes actor info and separate time/date formatting
+ */
+export const getAllClientActivity = query({
+    args: {
+        clientId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user || (user.role !== "coach" && user.role !== "admin")) {
+            return [];
+        }
+
+        // Get client info for actor name
+        const client = await ctx.db.get(args.clientId);
+        if (!client) return [];
+        const clientName = `${client.firstName} ${client.lastName ?? ""}`.trim();
+
+        // Get coach info
+        const coach = client.assignedCoachId
+            ? await ctx.db.get(client.assignedCoachId)
+            : null;
+        const coachName = coach
+            ? `${coach.firstName} ${coach.lastName ?? ""}`.trim()
+            : "Coach";
+
+        // Activity items array with extended info
+        const activities: Array<{
+            id: string;
+            type: "weight" | "meals" | "message" | "missed" | "plan" | "water";
+            color: string;
+            title: string;
+            description: string;
+            time: string;
+            date: string;
+            actor: "coach" | "client" | "system";
+            actorName: string;
+            timestamp: number;
+        }> = [];
+
+        // Helper to format time (e.g., "2:30 PM")
+        const formatTime = (timestamp: number): string => {
+            const date = new Date(timestamp);
+            let hours = date.getHours();
+            const minutes = date.getMinutes().toString().padStart(2, "0");
+            const ampm = hours >= 12 ? "PM" : "AM";
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${hours}:${minutes} ${ampm}`;
+        };
+
+        // Helper to format date (e.g., "Dec 10, 2024")
+        const formatDate = (timestamp: number): string => {
+            const date = new Date(timestamp);
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        };
+
+        // ============ WEIGHT LOGS ============
+        const weightLogs = await ctx.db
+            .query("weightLogs")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .order("desc")
+            .collect();
+
+        const feelingEmojis: Record<string, string> = {
+            excellent: "🤩",
+            great: "😊",
+            good: "🙂",
+            challenging: "😓",
+            very_hard: "😢",
+        };
+
+        for (const log of weightLogs) {
+            activities.push({
+                id: `weight_${log._id}`,
+                type: "weight",
+                color: "#60A5FA", // Blue
+                title: "Weight Logged",
+                description: `${log.weight} ${log.unit}${log.feeling ? ` • ${feelingEmojis[log.feeling] ?? ""} ${log.feeling.replace("_", " ")}` : ""}`,
+                time: formatTime(log.createdAt),
+                date: formatDate(log.createdAt),
+                actor: "client",
+                actorName: clientName,
+                timestamp: log.createdAt,
+            });
+        }
+
+        // ============ MEAL COMPLETIONS ============
+        const mealCompletions = await ctx.db
+            .query("mealCompletions")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .order("desc")
+            .collect();
+
+        for (const meal of mealCompletions) {
+            activities.push({
+                id: `meal_${meal._id}`,
+                type: "meals",
+                color: "#27AE61", // Green
+                title: "Meal Completed",
+                description: `${meal.mealType.charAt(0).toUpperCase() + meal.mealType.slice(1)}`,
+                time: formatTime(meal.createdAt),
+                date: formatDate(meal.createdAt),
+                actor: "client",
+                actorName: clientName,
+                timestamp: meal.createdAt,
+            });
+        }
+
+        // ============ MESSAGES ============
+        const conversation = await ctx.db
+            .query("conversations")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .first();
+
+        if (conversation) {
+            const messages = await ctx.db
+                .query("messages")
+                .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))
+                .order("desc")
+                .collect();
+
+            for (const msg of messages) {
+                const isFromClient = msg.senderId !== user._id && msg.senderId === args.clientId;
+                activities.push({
+                    id: `msg_${msg._id}`,
+                    type: "message",
+                    color: "#5073FE", // Primary blue
+                    title: "Message Sent",
+                    description: msg.content.substring(0, 50) + (msg.content.length > 50 ? "..." : ""),
+                    time: formatTime(msg.createdAt),
+                    date: formatDate(msg.createdAt),
+                    actor: isFromClient ? "client" : "coach",
+                    actorName: isFromClient ? clientName : coachName,
+                    timestamp: msg.createdAt,
+                });
+            }
+        }
+
+        // ============ MEAL PLANS ============
+        const mealPlans = await ctx.db
+            .query("weeklyMealPlans")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .order("desc")
+            .collect();
+
+        for (const plan of mealPlans) {
+            if (plan.status === "published" || plan.status === "active") {
+                activities.push({
+                    id: `plan_${plan._id}`,
+                    type: "plan",
+                    color: "#10B981", // Emerald
+                    title: "Plan Assigned",
+                    description: `Week: ${plan.weekStartDate} - ${plan.weekEndDate}`,
+                    time: formatTime(plan.publishedAt || plan.createdAt),
+                    date: formatDate(plan.publishedAt || plan.createdAt),
+                    actor: "coach",
+                    actorName: coachName,
+                    timestamp: plan.publishedAt || plan.createdAt,
+                });
+            }
+        }
+
+        // ============ SORT BY TIMESTAMP ============
+        activities.sort((a, b) => b.timestamp - a.timestamp);
+
+        return activities;
+    },
+});
+
+/**
  * Get weight chart data for different periods
  */
 export const getWeightChartData = query({

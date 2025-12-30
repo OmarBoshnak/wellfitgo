@@ -84,7 +84,7 @@ const DoctorHeader: React.FC<DoctorHeaderProps> = ({
                 </TouchableOpacity>
                 {/* Greeting Section */}
                 <View style={[styles.greetingContainer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-                    <Text style={[styles.greeting, { textAlign: isRTL ? 'right' : 'left' }]}>
+                    <Text style={[styles.greeting, { textAlign: isRTL ? 'left' : 'right' }]}>
                         {getGreeting()},{'\n'} 👋 {userName.split(' ')[0]}
                     </Text>
                 </View>

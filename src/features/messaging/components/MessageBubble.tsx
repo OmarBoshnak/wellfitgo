@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '@/src/core/constants/Themes';
@@ -49,11 +49,10 @@ const MessageBubble = React.memo(function MessageBubble({ message, showAvatar, a
     // Audio message - use VoiceMessageBubble
     if (isAudio && message.audioUri && !isDeleted) {
         return (
-            <Pressable
+            <TouchableOpacity
                 onLongPress={handleLongPress}
                 delayLongPress={300}
-                onPress={() => { }}
-                android_ripple={{ color: 'transparent' }}
+                activeOpacity={0.9}
             >
                 <VoiceMessageBubble
                     id={message.id}
@@ -62,7 +61,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, showAvatar, a
                     isMine={isMe}
                     timestamp={message.timestamp}
                 />
-            </Pressable>
+            </TouchableOpacity>
         );
     }
 
@@ -90,11 +89,10 @@ const MessageBubble = React.memo(function MessageBubble({ message, showAvatar, a
 
     // Regular text message bubble
     return (
-        <Pressable
+        <TouchableOpacity
             onLongPress={handleLongPress}
             delayLongPress={300}
-            onPress={() => { }}
-            android_ripple={{ color: 'transparent' }}
+            activeOpacity={0.9}
         >
             <View style={[styles.container, isMe ? styles.containerMe : styles.containerClient]}>
                 {/* Avatar placeholder for alignment (client messages) */}
@@ -140,7 +138,7 @@ const MessageBubble = React.memo(function MessageBubble({ message, showAvatar, a
                     </View>
                 </View>
             </View>
-        </Pressable>
+        </TouchableOpacity>
     );
 });
 
@@ -228,7 +226,7 @@ const styles = StyleSheet.create({
         marginLeft: horizontalScale(4),
     },
     metaRowClient: {
-        justifyContent: 'flex-start', // RTL
+        justifyContent: 'flex-end', // RTL
         marginRight: horizontalScale(4),
     },
     timestamp: {

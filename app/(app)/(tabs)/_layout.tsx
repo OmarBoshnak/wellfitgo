@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { View, Text, StyleSheet } from 'react-native';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { colors } from '@/src/core/constants/Themes';
 import { tabTranslations } from '@/src/core/constants/translations';
 import { verticalScale } from '@/src/core/utils/scaling';
 
 export default function TabsLayout() {
+    // Get unread message count for client
+    const unreadCount = useQuery(api.chat.getClientUnreadCount) || 0;
+
     return (
         <Tabs
             screenOptions={{
@@ -47,7 +53,16 @@ export default function TabsLayout() {
                 options={{
                     title: tabTranslations.chat,
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="chatbubble" size={size} color={color} />
+                        <View>
+                            <Ionicons name="chatbubble" size={size} color={color} />
+                            {unreadCount > 0 && (
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
                     ),
                 }}
             />
@@ -64,3 +79,23 @@ export default function TabsLayout() {
         </Tabs>
     );
 }
+
+const styles = StyleSheet.create({
+    badge: {
+        position: 'absolute',
+        right: -8,
+        top: -4,
+        backgroundColor: '#EF4444',
+        borderRadius: 10,
+        minWidth: 18,
+        height: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+    },
+    badgeText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '700',
+    },
+});

@@ -160,8 +160,11 @@ export default function DoctorDashboard() {
 
     // ============ ATTENTION SECTION HANDLERS ============
     const handleClientPress = (clientId: string) => {
-        // Use type assertion for dynamic route - expo-router doesn't type dynamic segments well
-        router.push(`/(app)/doctor/client/${clientId}` as any);
+        // Navigate to client profile with id param
+        router.push({
+            pathname: '/(app)/doctor/client-profile',
+            params: { id: clientId },
+        });
     };
 
     const handleMessagePress = (clientId: string) => {
@@ -289,7 +292,7 @@ export default function DoctorDashboard() {
                     activities={recentActivities}
                     isLoading={activitiesLoading}
                     isEmpty={noActivities}
-                    onSeeAll={() => navigateTo('analytics')}
+                    onSeeAll={() => router.push('/(app)/doctor/coach-activity-history')}
                 />
             </ScrollView>
         </SafeAreaView>

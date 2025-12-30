@@ -211,7 +211,7 @@ export default function AnalyticsScreen() {
             <View style={[styles.header, { paddingTop: insets.top }]}>
                 <View style={[styles.headerTop, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <View style={styles.headerTitleContainer}>
-                        <Text style={[styles.title, { textAlign: isRTL ? 'right' : 'left' }]}>{t.title}</Text>
+                        <Text style={[styles.title, { textAlign: isRTL ? 'left' : 'left' }]}>{t.title}</Text>
                     </View>
                     <View style={[styles.headerActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         {/* Time Filter Dropdown */}
@@ -305,7 +305,7 @@ export default function AnalyticsScreen() {
                 {/* Progress Distribution */}
                 {progressData && progressData.total > 0 && (
                     <View style={styles.chartCard}>
-                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                             {t.progressDistribution}
                         </Text>
 
@@ -388,7 +388,7 @@ export default function AnalyticsScreen() {
                 {/* Daily Activity Chart */}
                 {data.dailyActivity.length > 0 && (
                     <View style={styles.chartCard}>
-                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                             {t.dailyActivity}
                         </Text>
 
@@ -453,22 +453,22 @@ export default function AnalyticsScreen() {
                 {/* Check-in Status Table */}
                 {data.clients.length > 0 && (
                     <View style={styles.tableCard}>
-                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                        <Text style={[styles.cardTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                             {t.checkInStatus}
                         </Text>
 
                         {/* Table Header */}
-                        <View style={[styles.tableHeader, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: isRTL ? 'right' : 'left' }]}>
+                        <View style={[styles.tableHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                            <Text style={[styles.tableHeaderText, { flex: 2, textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.client}
                             </Text>
-                            <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.lastCheckIn}
                             </Text>
-                            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.tableHeaderText, { flex: 1, textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.status}
                             </Text>
-                            <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.tableHeaderText, { flex: 1.5, textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.action}
                             </Text>
                         </View>
@@ -481,16 +481,16 @@ export default function AnalyticsScreen() {
                             return (
                                 <View
                                     key={client.id}
-                                    style={[styles.tableRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+                                    style={[styles.tableRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}
                                 >
                                     <Text
-                                        style={[styles.tableText, { flex: 2, textAlign: isRTL ? 'right' : 'left' }]}
+                                        style={[styles.tableText, { flex: 2, textAlign: isRTL ? 'left' : 'right' }]}
                                         numberOfLines={1}
                                     >
                                         {client.name}
                                     </Text>
                                     <Text
-                                        style={[styles.tableTextSecondary, { flex: 1.5, textAlign: isRTL ? 'right' : 'left' }]}
+                                        style={[styles.tableTextSecondary, { flex: 1.5, textAlign: isRTL ? 'left' : 'right' }]}
                                     >
                                         {lastCheckInText}
                                     </Text>
@@ -499,7 +499,7 @@ export default function AnalyticsScreen() {
                                             <Text style={styles.statusEmoji}>{statusDisplay.emoji}</Text>
                                         </View>
                                     </View>
-                                    <View style={[styles.actionContainer, { flex: 1.5, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                                    <View style={[styles.actionContainer, { flex: 1.5, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                         {client.status !== 'on_track' && (
                                             <TouchableOpacity activeOpacity={0.7}>
                                                 <Text style={styles.actionText}>{t.sendReminder}</Text>
@@ -540,10 +540,10 @@ function StatCard({ icon, iconBg, label, value, trend, trendUp }: StatCardProps)
             <View style={[styles.statIcon, { backgroundColor: iconBg }]}>
                 {icon}
             </View>
-            <Text style={[styles.statLabel, { textAlign: isRTL ? 'right' : 'left' }]}>{label}</Text>
-            <Text style={[styles.statValue, { textAlign: isRTL ? 'right' : 'left' }]}>{value}</Text>
+            <Text style={[styles.statLabel, { textAlign: isRTL ? 'left' : 'right' }]}>{label}</Text>
+            <Text style={[styles.statValue, { textAlign: isRTL ? 'left' : 'right' }]}>{value}</Text>
             {trend && (
-                <View style={[styles.trendRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[styles.trendRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     {trendUp ? (
                         <TrendingUp size={horizontalScale(12)} color={colors.success} />
                     ) : (
@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     },
     headerTop: {
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
     },
     headerTitleContainer: {
         flex: 1,
@@ -734,6 +734,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: colors.textPrimary,
         marginBottom: verticalScale(16),
+        paddingHorizontal: horizontalScale(16),
     },
     // Donut Chart
     donutContainer: {

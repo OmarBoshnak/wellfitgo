@@ -34,7 +34,7 @@ function StatCard({
 }: StatCardProps) {
     return (
         <TouchableOpacity style={styles.statCard} onPress={onPress} activeOpacity={0.7}>
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row' }}>
+            <View style={{ flexDirection: isRTL ? 'row' : 'row-reverse' }}>
                 <View style={[styles.statIconContainer, { backgroundColor: iconBgColor }]}>
                     {icon}
                 </View>

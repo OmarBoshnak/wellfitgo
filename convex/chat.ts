@@ -241,6 +241,35 @@ export const getUnreadCount = query({
 });
 
 /**
+ * Get unread message count for the client's tab bar badge
+ * Returns unreadByClient from their active conversation with assigned doctor
+ */
+export const getClientUnreadCount = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!user || user.role !== "client") return 0;
+
+        // Check if client has an assigned chat doctor
+        if (!user.assignedChatDoctorId) return 0;
+
+        // Get active conversation with assigned chat doctor
+        const conversation = await ctx.db
+            .query("conversations")
+            .withIndex("by_client", (q) => q.eq("clientId", user._id))
+            .filter((q) =>
+                q.and(
+                    q.eq(q.field("coachId"), user.assignedChatDoctorId),
+                    q.eq(q.field("status"), "active")
+                )
+            )
+            .first();
+
+        return conversation?.unreadByClient || 0;
+    },
+});
+
+/**
  * Get messages for a conversation (real-time subscription)
  */
 export const getMessages = query({
@@ -298,6 +327,7 @@ export const sendMessage = mutation({
             )
         ),
         mediaUrl: v.optional(v.string()),
+        mediaDuration: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const user = await requireAuth(ctx);
@@ -350,6 +380,7 @@ export const sendMessage = mutation({
             content: args.content,
             messageType: args.messageType || "text",
             mediaUrl: args.mediaUrl,
+            mediaDuration: args.mediaDuration,
             isReadByClient: user.role === "client",
             isReadByCoach: user.role === "coach",
             isEdited: false,

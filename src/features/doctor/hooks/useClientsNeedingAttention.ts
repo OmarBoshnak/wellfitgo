@@ -10,7 +10,7 @@ import { isRTL } from "@/src/core/i18n";
 export interface AttentionClient {
     id: string;
     name: string;
-    avatar: string;
+    avatar: string | null;
     status: string;
     statusType: "critical" | "warning" | "info";
     lastActive?: string;
@@ -172,7 +172,7 @@ export function useClientsNeedingAttention(
         return {
             id: client.id,
             name: client.name,
-            avatar: client.avatarUrl || "https://via.placeholder.com/100",
+            avatar: client.avatarUrl || null,
             status,
             statusType,
             lastActive,

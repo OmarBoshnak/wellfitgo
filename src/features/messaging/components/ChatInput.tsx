@@ -54,7 +54,7 @@ export default function ChatInput({
 
     // Refs for recording
     const recordingRef = useRef<any>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Waveform animation
     const waveformAnims = useRef([
@@ -147,26 +147,39 @@ export default function ChatInput({
     const startRecording = async () => {
         if (!Audio) {
             setPermissionDenied(true);
+            console.log('Audio module not available');
             return;
         }
 
         try {
+            console.log('Requesting audio permissions...');
             const { status } = await Audio.requestPermissionsAsync();
+            console.log('Permission status:', status);
+
             if (status !== 'granted') {
                 setPermissionDenied(true);
                 return;
             }
 
             setPermissionDenied(false);
+
+            // Set audio mode for recording - with Android settings
+            console.log('Setting audio mode for recording...');
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
+                // Android settings
+                staysActiveInBackground: false,
+                shouldDuckAndroid: true,
+                playThroughEarpieceAndroid: false,
             });
 
+            console.log('Creating recording...');
             const { recording } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
 
+            console.log('Recording started successfully');
             recordingRef.current = recording;
             setRecordingState('recording');
             setRecordingDuration(0);
@@ -174,6 +187,7 @@ export default function ChatInput({
             startWaveformAnimation();
         } catch (err) {
             console.log('Failed to start recording:', err);
+            setPermissionDenied(true);
         }
     };
 

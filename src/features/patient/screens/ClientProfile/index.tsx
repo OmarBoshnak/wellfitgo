@@ -157,7 +157,7 @@ export default function ClientProfileScreen({ clientId }: ClientProfileScreenPro
             case 'activity':
                 return (
                     <View style={styles.tabContent}>
-                        <ActivityTimeline activities={activities} />
+                        <ActivityTimeline activities={activities} clientId={client.id} />
                     </View>
                 );
             case 'mealPlanContent':

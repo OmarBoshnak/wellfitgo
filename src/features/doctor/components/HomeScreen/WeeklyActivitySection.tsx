@@ -162,6 +162,7 @@ const styles = StyleSheet.create({
     chartContainer: {
         justifyContent: 'space-between',
         alignItems: 'flex-end',
+        paddingTop: verticalScale(10),
         height: verticalScale(100),
         marginBottom: verticalScale(16),
     },

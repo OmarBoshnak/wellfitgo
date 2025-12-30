@@ -39,7 +39,7 @@ export function SettingsTab({ clientId }: SettingsTabProps) {
     const [showDoctorModal, setShowDoctorModal] = useState(false);
     const [isAssigning, setIsAssigning] = useState(false);
 
-    const isAdmin = currentUser?.role === 'coach';
+    const isAdmin = currentUser?.role === 'admin';
 
     const getSubscriptionLabel = (status: string): { label: string; color: string; bg: string } => {
         const configs: Record<string, { label: string; color: string; bg: string }> = {
@@ -105,7 +105,7 @@ export function SettingsTab({ clientId }: SettingsTabProps) {
     const getAssignedDoctorName = (): string => {
         if (!settings?.assignedChatDoctor) return isRTL ? 'غير معين' : 'Not Assigned';
         const foundDoctor = doctors?.find(d => d._id === settings.assignedChatDoctor);
-        if (foundDoctor) return `${isRTL ? 'د.' : 'Dr.'} ${foundDoctor.firstName}`;
+        if (foundDoctor) return `${'Dr.'} ${foundDoctor.firstName}`;
         return isRTL ? 'غير معين' : 'Not Assigned';
     };
 

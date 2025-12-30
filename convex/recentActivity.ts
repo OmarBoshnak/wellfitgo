@@ -199,3 +199,200 @@ export const getRecentActivity = query({
         return activities.slice(0, limit);
     },
 });
+
+/**
+ * Get ALL recent activity for the coach (no time limit)
+ * Used for full-screen activity history
+ */
+export const getAllRecentActivity = query({
+    args: {},
+    handler: async (ctx) => {
+        const user = await getCurrentUser(ctx);
+        if (!user || (user.role !== "coach" && user.role !== "admin")) {
+            return [];
+        }
+
+        // Helper to format time (e.g., "2:30 PM")
+        const formatTime = (timestamp: number): string => {
+            const date = new Date(timestamp);
+            let hours = date.getHours();
+            const minutes = date.getMinutes().toString().padStart(2, "0");
+            const ampm = hours >= 12 ? "PM" : "AM";
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${hours}:${minutes} ${ampm}`;
+        };
+
+        // Helper to format date (e.g., "Dec 10, 2024")
+        const formatDate = (timestamp: number): string => {
+            const date = new Date(timestamp);
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+        };
+
+        // Activity items with extended info
+        const activities: Array<{
+            id: string;
+            type: ActivityType;
+            clientId: Id<"users">;
+            clientName: string;
+            clientAvatar?: string;
+            time: string;
+            date: string;
+            title: string;
+            description: string;
+            actor: "coach" | "client" | "system";
+            timestamp: number;
+        }> = [];
+
+        // ============ 1. GET COACH'S CLIENTS ============
+        const clients = await ctx.db
+            .query("users")
+            .withIndex("by_assigned_coach", (q) => q.eq("assignedCoachId", user._id))
+            .collect();
+
+        const clientMap = new Map(
+            clients.map((c) => [
+                c._id,
+                {
+                    name: `${c.firstName} ${c.lastName || ""}`.trim(),
+                    avatar: c.avatarUrl,
+                },
+            ])
+        );
+
+        // ============ 2. WEIGHT LOGS ============
+        for (const client of clients) {
+            const logs = await ctx.db
+                .query("weightLogs")
+                .withIndex("by_client", (q) => q.eq("clientId", client._id))
+                .order("desc")
+                .take(20);
+
+            for (const log of logs) {
+                activities.push({
+                    id: `weight_${log._id}`,
+                    type: "weight_log",
+                    clientId: client._id,
+                    clientName: clientMap.get(client._id)?.name || "Client",
+                    clientAvatar: clientMap.get(client._id)?.avatar,
+                    time: formatTime(log.createdAt),
+                    date: formatDate(log.createdAt),
+                    title: "Weight Logged",
+                    description: `${log.weight} ${log.unit}`,
+                    actor: "client",
+                    timestamp: log.createdAt,
+                });
+            }
+        }
+
+        // ============ 3. CLIENT MESSAGES ============
+        const conversations = await ctx.db
+            .query("conversations")
+            .withIndex("by_coach", (q) => q.eq("coachId", user._id))
+            .collect();
+
+        for (const conv of conversations) {
+            const messages = await ctx.db
+                .query("messages")
+                .withIndex("by_conversation", (q) => q.eq("conversationId", conv._id))
+                .filter((q) => q.neq(q.field("senderId"), user._id))
+                .order("desc")
+                .take(10);
+
+            const clientInfo = clientMap.get(conv.clientId);
+            for (const msg of messages) {
+                activities.push({
+                    id: `msg_${msg._id}`,
+                    type: "message",
+                    clientId: conv.clientId,
+                    clientName: clientInfo?.name || "Client",
+                    clientAvatar: clientInfo?.avatar,
+                    time: formatTime(msg.createdAt),
+                    date: formatDate(msg.createdAt),
+                    title: "Message Received",
+                    description: msg.content.substring(0, 50) + (msg.content.length > 50 ? "..." : ""),
+                    actor: "client",
+                    timestamp: msg.createdAt,
+                });
+            }
+        }
+
+        // ============ 4. MEAL COMPLETIONS ============
+        for (const client of clients) {
+            const completions = await ctx.db
+                .query("mealCompletions")
+                .withIndex("by_client", (q) => q.eq("clientId", client._id))
+                .order("desc")
+                .take(10);
+
+            for (const completion of completions) {
+                activities.push({
+                    id: `meal_${completion._id}`,
+                    type: "meal_completed",
+                    clientId: client._id,
+                    clientName: clientMap.get(client._id)?.name || "Client",
+                    clientAvatar: clientMap.get(client._id)?.avatar,
+                    time: formatTime(completion.createdAt),
+                    date: formatDate(completion.createdAt),
+                    title: "Meal Completed",
+                    description: `${completion.mealType.charAt(0).toUpperCase() + completion.mealType.slice(1)}`,
+                    actor: "client",
+                    timestamp: completion.createdAt,
+                });
+            }
+        }
+
+        // ============ 5. PLANS PUBLISHED ============
+        const plans = await ctx.db
+            .query("weeklyMealPlans")
+            .withIndex("by_coach", (q) => q.eq("coachId", user._id))
+            .filter((q) =>
+                q.or(
+                    q.eq(q.field("status"), "published"),
+                    q.eq(q.field("status"), "active")
+                )
+            )
+            .order("desc")
+            .take(20);
+
+        for (const plan of plans) {
+            const clientInfo = clientMap.get(plan.clientId);
+            activities.push({
+                id: `plan_${plan._id}`,
+                type: "plan_published",
+                clientId: plan.clientId,
+                clientName: clientInfo?.name || "Client",
+                clientAvatar: clientInfo?.avatar,
+                time: formatTime(plan.publishedAt || plan.createdAt),
+                date: formatDate(plan.publishedAt || plan.createdAt),
+                title: "Plan Published",
+                description: `Week: ${plan.weekStartDate}`,
+                actor: "coach",
+                timestamp: plan.publishedAt || plan.createdAt,
+            });
+        }
+
+        // ============ 6. NEW CLIENTS ============
+        for (const client of clients) {
+            activities.push({
+                id: `new_${client._id}`,
+                type: "new_client",
+                clientId: client._id,
+                clientName: clientMap.get(client._id)?.name || "Client",
+                clientAvatar: clientMap.get(client._id)?.avatar,
+                time: formatTime(client.createdAt),
+                date: formatDate(client.createdAt),
+                title: "New Client Joined",
+                description: `Subscription: ${client.subscriptionStatus}`,
+                actor: "system",
+                timestamp: client.createdAt,
+            });
+        }
+
+        // Sort by timestamp descending
+        activities.sort((a, b) => b.timestamp - a.timestamp);
+
+        return activities;
+    },
+});
