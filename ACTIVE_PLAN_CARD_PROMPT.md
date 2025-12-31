@@ -1,72 +1,151 @@
-# Feature: Active Plan Progress Card & Dashboard
+# Feature: Active Plan Dashboard (Full Screen Upgrade)
 
-## Context
-The user wants to upgrade the "Active Plan Card" (triggered by `renderActivePlanCard` / `viewProgress` action) in the mobile app.
-The new design is based on a provided HTML/Tailwind template, which needs to be ported to **React Native (Expo)** with **Convex** backend integration.
-It must support **Arabic (RTL)** and include specific UI modifications.
+You are a senior mobile engineer working on a React Native (Expo) application using Convex as the backend.
 
-## Requirements
+Your task is to implement a full **Active Plan Dashboard** experience, replacing the existing lightweight "Active Plan Card / View Progress" behavior.
 
-### 1. New Component: `ActivePlanDashboard.tsx`
-Create a new screen or full-screen modal component at `src/features/meal-plans/components/ActivePlanDashboard.tsx`.
+## 🎯 Objective
 
-#### UI Specifications (Ported from HTML)
-*   **Header:**
-    *   Left: "Back" arrow button (Navigates back).
-    *   Center: Title (e.g., "Ahmed's Meal Plan").
-    *   Right: **REMOVE** the "Vertical Points" (More) button.
-*   **Plan Summary Card:**
-    *   Gradient background (`primary` to `primary-dark`).
-    *   "Active" Badge.
-    *   Plan Name (e.g., "Classic 1200-1300").
-    *   Start Date & Current Week info.
-*   **Weekly Progress Section:**
-    *   **Circular Chart:** Visualizes "Meals Done" vs "Total Meals" for the week (e.g., 18/21). Use `react-native-svg` or a lightweight chart library.
-    *   **Day Scroller:** Horizontal list of days (Sat -> Fri).
-        *   States: Completed (Green Check), Partial (Yellow Timer), Missed (Red X), Upcoming (Gray).
-        *   "Today" should be highlighted visually.
-*   **Daily Checklist:**
-    *   Vertical list of meals for the selected day.
-    *   Checkbox logic:
-        *   If completed: Green check, line-through text? (or just "Completed 8:30 AM" badge).
-        *   If pending: Empty box.
-    *   Images: Show meal image if available.
-*   **Bottom Actions:**
-    *   Three buttons: "View Plan", "Modify", and **"Okay Reminder"** (Renamed from "Remind").
+Upgrade the current Active Plan progress view into a full-screen dashboard that visualizes:
+1.  Weekly plan progress
+2.  Day-by-day completion status
+3.  Meal checklist for the selected day
 
-#### Localization (Arabic/RTL)
-*   Use the `isRTL` helper.
-*   Flip layouts (`flex-direction: row-reverse`) where appropriate.
-*   Translate all static text (e.g., "Active" -> "نشط", "This Week" -> "هذا الأسبوع", "Meals Done" -> "وجبات مكتملة").
+This screen must be **production-ready**, **RTL-aware**, and suitable for QA testing and App Store release.
 
-### 2. Backend Integration (Convex)
+## 1️⃣ New Component Structure
 
-#### Query: `api.plans.getActivePlanProgress`
-Create a new query in `convex/plans.ts` (or `mealPlans.ts`) that returns:
-1.  **Plan Info:** Name, Type, Start Date.
-2.  **Weekly Stats:**
-    *   Total meals scheduled for the current week.
-    *   Total meals completed.
-    *   Progress percentage.
-3.  **Daily Status:** For each day of the current week (Sat-Fri):
-    *   Status: `completed` | `partial` | `missed` | `upcoming`.
-    *   Is Today?
-4.  **Selected Day Meals:** List of meals for the requested day (or today).
-    *   `id`, `name`, `time`, `isCompleted`, `imageUrl`.
+Create the following files:
 
-### 3. Integration Point
-*   In `mobile/app/(app)/(tabs)/index.tsx` (or the relevant home screen):
-    *   Locate the `renderActivePlanCard` or the "View Progress" button.
-    *   On press, navigate to this new `ActivePlanDashboard` screen (push to stack or open modal).
+```
+src/features/meal-plans/components/
+├─ ActivePlanDashboard.tsx
+├─ ProgressChart.tsx
+├─ DayScroller.tsx
+```
 
-### 4. Special Logic
-*   **"Okay Reminder" Button:**
-    *   Action: Trigger a local notification or Convex mutation to set a reminder for the next meal.
-    *   Feedback: Show a toast "Reminder Set".
-*   **View Plan Button:** Navigate to the full plan details view.
-*   **Modify Button:** Navigate to `EditDietScreen` (if allowed for client) or show "Contact Coach".
+**ActivePlanDashboard.tsx**
+- Implement as a full-screen stack screen (NOT a bottom sheet).
+- Must be navigable via `router.push()` or equivalent.
 
-## file structure
-- `src/features/meal-plans/components/ActivePlanDashboard.tsx`
-- `src/features/meal-plans/components/ProgressChart.tsx` (Helper)
-- `src/features/meal-plans/components/DayScroller.tsx` (Helper)
+## 2️⃣ UI Requirements (Port HTML → React Native)
+
+### Header
+- **Left:** Back arrow (respects RTL).
+- **Center:** Dynamic title (Example: "Ahmed's Meal Plan").
+- **Right:** ❌ Remove the vertical "more" menu entirely.
+
+### Plan Summary Card
+- **Background:** Gradient (`primary` → `primaryDark`).
+- **Badge:** Active → Arabic: "نشط".
+- **Content:**
+  - Plan name.
+  - Start date + current week label (Example: "Week 3 • Started Jan 10").
+
+### Weekly Progress Section
+
+**Circular Progress Chart (`ProgressChart.tsx`)**
+- Implement using `react-native-svg` (or `react-native-circular-progress`).
+- Shows:
+  - Meals completed.
+  - Total meals.
+  - Percentage text in center.
+
+**Day Scroller (`DayScroller.tsx`)**
+- Horizontal ScrollView/FlatList.
+- **Order:** Sat → Fri.
+- **States:**
+  - `completed` → Green check icon.
+  - `partial` → Yellow timer icon.
+  - `missed` → Red X icon.
+  - `upcoming` → Gray circle.
+- **Focus:** "Today" must be visually highlighted.
+- **Interaction:** Selecting a day updates the checklist below.
+
+### Daily Meal Checklist
+- **Component:** Vertical `FlatList`.
+- **Item Content:**
+  - Meal name.
+  - Time.
+  - Optional image.
+  - **Completion State:**
+    - *Completed:* Green check + Optional "Completed at 8:30 AM" badge.
+    - *Pending:* Empty checkbox.
+
+### Bottom Actions (Sticky)
+Three buttons, equally sized:
+1.  **View Plan:** Navigate to full plan details.
+2.  **Modify:**
+    - If client allowed → Navigate to `EditDietScreen`.
+    - Else → Show alert "Contact Coach".
+3.  **Okay Reminder:**
+    - Triggers reminder for next meal.
+    - Shows toast: "تم ضبط التذكير" (Reminder Set).
+
+## 3️⃣ Localization & RTL
+
+- **Default language:** Arabic.
+- **Helper:** Use `isRTL` from constants/utils.
+- **Styles:**
+  - Apply `flexDirection: 'row-reverse'` where necessary (or rely on I18nManager if fully consistent).
+  - Use RTL-safe icons (careful with arrows).
+- **Translations:**
+  - Active → "نشط"
+  - This Week → "هذا الأسبوع"
+  - Meals Done → "وجبات مكتملة"
+  - Reminder Set → "تم ضبط التذكير"
+
+## 4️⃣ Backend (Convex)
+
+**Query:** `api.plans.getActivePlanProgress`
+
+**Return Shape:**
+```typescript
+{
+  plan: {
+    id: Id<"weeklyMealPlans">,
+    name: string,
+    startDate: string,
+    type: string
+  },
+  weeklyStats: {
+    totalMeals: number,
+    completedMeals: number,
+    progressPercentage: number
+  },
+  days: Array<{
+    date: string,
+    label: string, // Sat, Sun... (Localized)
+    status: "completed" | "partial" | "missed" | "upcoming",
+    isToday: boolean
+  }>,
+  meals: Array<{
+    id: string,
+    name: string,
+    time: string,
+    isCompleted: boolean,
+    imageUrl?: string
+  }>
+}
+```
+- **Logic:** Default selected day = Today. Changing day refetches meals (or filters client-side if data is small).
+
+## 5️⃣ Integration Point
+
+**File:** `mobile/app/(app)/(tabs)/index.tsx`
+
+Locate `renderActivePlanCard` or the "View Progress" button.
+**Action:** Replace behavior with `router.push('/active-plan-dashboard')`.
+
+## 6️⃣ UX & Quality Constraints
+
+1.  **States:** Handle Loading, Empty (no active plan), and Error states gracefully.
+2.  **Performance:** Use `FlatList` for the meal list (avoid nesting ScrollViews incorrectly).
+3.  **Code Quality:** No hardcoded data. Clean separation of UI, State, and Backend calls.
+
+## ✅ Definition of Done
+- [ ] Screen renders correctly in **Arabic RTL**.
+- [ ] Progress updates correctly per day.
+- [ ] Convex query is reusable and efficient.
+- [ ] Code is readable, typed, and testable.
+- [ ] No leftover web/Tailwind classes (convert all to `StyleSheet`).
