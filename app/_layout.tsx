@@ -11,6 +11,16 @@ import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { ConvexReactClient } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useQuery } from 'convex/react';
+import * as Sentry from '@sentry/react-native';
+import { AnalyticsProvider } from '@/src/core/providers/AnalyticsProvider';
+
+// Initialize Sentry
+Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    debug: __DEV__, // Print debug info in development
+    tracesSampleRate: 1.0, // Performance monitoring
+    environment: __DEV__ ? 'development' : 'production',
+});
 
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
@@ -90,6 +100,19 @@ function InitialLayout() {
         }
     }, [isLoaded]);
 
+    // Set user context in Sentry for better error tracking
+    useEffect(() => {
+        if (convexUser && convexUser._id) {
+            Sentry.setUser({
+                id: convexUser._id,
+                email: convexUser.email,
+                username: convexUser.role,
+            });
+        } else if (!isSignedIn) {
+            Sentry.setUser(null);
+        }
+    }, [convexUser, isSignedIn]);
+
     return <Slot />;
 }
 
@@ -102,14 +125,16 @@ function LoadingView() {
     );
 }
 
-export default function RootLayout() {
+function RootLayout() {
     return (
         <Provider store={store}>
             <PersistGate loading={<LoadingView />} persistor={persistor}>
                 <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
                     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
                         <ClerkLoaded>
-                            <InitialLayout />
+                            <AnalyticsProvider>
+                                <InitialLayout />
+                            </AnalyticsProvider>
                         </ClerkLoaded>
                     </ConvexProviderWithClerk>
                 </ClerkProvider>
@@ -117,3 +142,6 @@ export default function RootLayout() {
         </Provider>
     );
 }
+
+// Wrap with Sentry for error boundary coverage
+export default Sentry.wrap(RootLayout);

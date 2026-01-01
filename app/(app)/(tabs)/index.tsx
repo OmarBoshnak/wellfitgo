@@ -257,6 +257,19 @@ const HomeScreen = () => {
                                 {waterIntake}/{waterGoal} {isRTL ? 'كوب' : 'cups'}
                             </Text>
                         </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.quickActionCard, shadows.light]}
+                            onPress={() => router.push('/(app)/active-plan-dashboard')}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="nutrition" size={24} color={colors.primaryDark} />
+                            <Text style={styles.quickActionText}>
+                                {isRTL ? 'تقدم الخطة' : 'Plan Progress'}
+                            </Text>
+                            <Text style={[styles.waterProgress, { color: colors.primaryDark }]}>
+                                {isRTL ? 'عرض التفاصيل' : 'View Details'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
 
                     {/* Card 3: Today's Meals */}

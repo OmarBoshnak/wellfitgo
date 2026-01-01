@@ -103,6 +103,8 @@ export default defineSchema({
         // Coach notes for this client (private to coach)
         coachNotes: v.optional(v.string()),
         coachNotesUpdatedAt: v.optional(v.number()),
+        // Push notification token (Expo Push Token)
+        expoPushToken: v.optional(v.string()),
         isActive: v.boolean(),
         lastActiveAt: v.optional(v.number()),
         createdAt: v.number(),

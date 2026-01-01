@@ -662,3 +662,449 @@ export const assignPlanToClients = mutation({
         };
     },
 });
+
+// ============ CLIENT ACTIVE PLAN PROGRESS ============
+
+/**
+ * Day abbreviations for Arabic week
+ * Indexed by JavaScript getDay(): 0=Sunday, 1=Monday, ..., 6=Saturday
+ */
+const DAY_LABELS_AR = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const DAY_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Get the client's active meal plan progress
+ * Returns plan info, weekly stats, days array (full duration), and meals for selected day
+ */
+export const getActivePlanProgress = query({
+    args: {
+        selectedDate: v.optional(v.string()), // ISO date string, defaults to today
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user || user.role !== "client") return null;
+
+        // Get the active weekly meal plan for this client
+        const activePlan = await ctx.db
+            .query("weeklyMealPlans")
+            .withIndex("by_client", (q) => q.eq("clientId", user._id))
+            .filter((q) => q.eq(q.field("status"), "active"))
+            .first();
+
+        if (!activePlan) return null;
+
+        // Get the associated diet plan for name/type info
+        let dietPlan = null;
+        if (activePlan.dietPlanId) {
+            dietPlan = await ctx.db.get(activePlan.dietPlanId);
+        }
+
+        // Calculate dates
+        const today = new Date();
+        const todayStr = today.toISOString().split("T")[0];
+        const selectedDate = args.selectedDate || todayStr;
+
+        // Plan start date (when assigned)
+        const planStart = new Date(activePlan.weekStartDate);
+
+        // Calculate plan end date based on duration
+        const durationWeeks = activePlan.durationWeeks || 4; // Default to 4 weeks if not set
+        const totalDays = durationWeeks * 7;
+        const planEnd = new Date(planStart);
+        planEnd.setDate(planStart.getDate() + totalDays - 1);
+        const planEndStr = planEnd.toISOString().split("T")[0];
+
+        // Generate days array for FULL plan duration
+        const days: Array<{
+            date: string;
+            label: string;
+            labelAr: string;
+            dayNum: number;
+            status: "completed" | "partial" | "missed" | "upcoming";
+            isToday: boolean;
+            weekNumber: number; // Which week of the plan this day belongs to
+        }> = [];
+
+        // Get all meal completions for this client within plan duration
+        const allCompletions = await ctx.db
+            .query("mealCompletions")
+            .withIndex("by_client", (q) => q.eq("clientId", user._id))
+            .collect();
+
+        const planCompletions = allCompletions.filter(
+            (c) => c.date >= activePlan.weekStartDate && c.date <= planEndStr
+        );
+
+        // Get expected meals count per day from the diet plan
+        let mealsPerDay = 4; // Default
+        if (dietPlan?.meals) {
+            mealsPerDay = dietPlan.meals.length;
+        } else if (dietPlan?.dailyMeals) {
+            const dayMeals = [
+                dietPlan.dailyMeals.saturday?.meals.length,
+                dietPlan.dailyMeals.sunday?.meals.length,
+                dietPlan.dailyMeals.monday?.meals.length,
+                dietPlan.dailyMeals.tuesday?.meals.length,
+                dietPlan.dailyMeals.wednesday?.meals.length,
+                dietPlan.dailyMeals.thursday?.meals.length,
+                dietPlan.dailyMeals.friday?.meals.length,
+            ].filter((n): n is number => n !== undefined);
+            if (dayMeals.length > 0) {
+                mealsPerDay = Math.max(...dayMeals);
+            }
+        }
+
+        let totalMeals = 0;
+        let completedMeals = 0;
+
+        // Build days array for FULL duration
+        for (let i = 0; i < totalDays; i++) {
+            const dayDate = new Date(planStart);
+            dayDate.setDate(planStart.getDate() + i);
+            const dateStr = dayDate.toISOString().split("T")[0];
+
+            const dayCompletions = planCompletions.filter((c) => c.date === dateStr);
+            const isToday = dateStr === todayStr;
+            const isPast = dayDate < today && !isToday;
+            const isFuture = dayDate > today;
+
+            // Which week of the plan (1-indexed)
+            const weekNumber = Math.floor(i / 7) + 1;
+
+            // Calculate status
+            let status: "completed" | "partial" | "missed" | "upcoming";
+            if (isFuture) {
+                status = "upcoming";
+            } else if (dayCompletions.length >= mealsPerDay) {
+                status = "completed";
+            } else if (dayCompletions.length > 0) {
+                status = "partial";
+            } else if (isPast) {
+                status = "missed";
+            } else {
+                status = "upcoming"; // Today with no completions
+            }
+
+            // Count for stats (only past and today days)
+            if (!isFuture) {
+                totalMeals += mealsPerDay;
+                completedMeals += dayCompletions.length;
+            }
+
+            const dayOfWeekIndex = dayDate.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+            days.push({
+                date: dateStr,
+                label: DAY_LABELS_EN[dayOfWeekIndex],
+                labelAr: DAY_LABELS_AR[dayOfWeekIndex],
+                dayNum: dayDate.getDate(),
+                status,
+                isToday,
+                weekNumber,
+            });
+        }
+
+        // Calculate progress percentage
+        const progressPercentage = totalMeals > 0 ? Math.round((completedMeals / totalMeals) * 100) : 0;
+
+        // Calculate current week number (which week we're in now)
+        const daysSinceStart = Math.floor((today.getTime() - planStart.getTime()) / (24 * 60 * 60 * 1000));
+        const currentWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, durationWeeks);
+
+        // Get meals for the selected day
+        const selectedDayDate = new Date(selectedDate);
+        const selectedDayOfWeek = selectedDayDate.getDay();
+        const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
+        // Get meals from diet plan
+        let mealsForDay: Array<{
+            id: string;
+            name: string;
+            nameAr: string;
+            time: string;
+            isCompleted: boolean;
+            completedAt?: number;
+            imageUrl?: string;
+        }> = [];
+
+        if (dietPlan) {
+            const dayCompletions = planCompletions.filter((c) => c.date === selectedDate);
+            const completedMealIds = new Set(dayCompletions.map((c) => c.mealId));
+
+            if (dietPlan.format === "general" && dietPlan.meals) {
+                mealsForDay = dietPlan.meals.map((meal) => ({
+                    id: meal.id,
+                    name: meal.name,
+                    nameAr: meal.nameAr || meal.name,
+                    time: meal.time || "12:00",
+                    isCompleted: completedMealIds.has(meal.id),
+                    completedAt: dayCompletions.find((c) => c.mealId === meal.id)?.completedAt,
+                }));
+            } else if (dietPlan.format === "daily" && dietPlan.dailyMeals) {
+                const dayName = dayNames[selectedDayOfWeek];
+                const dayData = dietPlan.dailyMeals[dayName];
+                if (dayData?.meals) {
+                    mealsForDay = dayData.meals.map((meal) => ({
+                        id: meal.id,
+                        name: meal.name,
+                        nameAr: meal.nameAr || meal.name,
+                        time: meal.time || "12:00",
+                        isCompleted: completedMealIds.has(meal.id),
+                        completedAt: dayCompletions.find((c) => c.mealId === meal.id)?.completedAt,
+                    }));
+                }
+            }
+        }
+
+        // Assignment date (when the plan was created/assigned)
+        const assignedAt = activePlan.createdAt;
+        const assignedDate = new Date(assignedAt).toISOString().split("T")[0];
+
+        return {
+            plan: {
+                id: activePlan._id,
+                name: dietPlan?.name || "Custom Plan",
+                nameAr: dietPlan?.nameAr || dietPlan?.name || "خطة مخصصة",
+                emoji: dietPlan?.emoji || TYPE_TO_DEFAULT_EMOJI[dietPlan?.type || "custom"] || "🥗",
+                startDate: activePlan.weekStartDate,
+                assignedDate, // When plan was assigned
+                planEndDate: planEndStr, // When plan ends
+                type: dietPlan?.type || "custom",
+                currentWeek, // Current week (1-indexed)
+                totalWeeks: durationWeeks, // Total weeks in plan
+                durationWeeks,
+                canModify: true, // Client can always modify their own plan tracking
+            },
+            weeklyStats: {
+                totalMeals,
+                completedMeals,
+                progressPercentage,
+                mealsPerDay,
+                totalDays,
+                daysCompleted: days.filter(d => d.status === "completed" || d.status === "partial").length,
+            },
+            days,
+            meals: mealsForDay,
+            selectedDate,
+        };
+    },
+});
+
+/**
+ * Get a specific client's plan progress (for coach/doctor viewing)
+ * Shows full plan duration from start to end
+ */
+export const getClientPlanProgress = query({
+    args: {
+        clientId: v.id("users"),
+        selectedDate: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) return null;
+
+        // Verify user is a coach or admin
+        if (user.role !== "coach" && user.role !== "admin") {
+            return null;
+        }
+
+        // Get the active weekly meal plan for the specified client
+        const activePlan = await ctx.db
+            .query("weeklyMealPlans")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .filter((q) => q.eq(q.field("status"), "active"))
+            .first();
+
+        if (!activePlan) return null;
+
+        // Get the associated diet plan for name/type info
+        let dietPlan = null;
+        if (activePlan.dietPlanId) {
+            dietPlan = await ctx.db.get(activePlan.dietPlanId);
+        }
+
+        // Calculate dates
+        const today = new Date();
+        const todayStr = today.toISOString().split("T")[0];
+        const selectedDate = args.selectedDate || todayStr;
+
+        // Plan start date (when doctor assigned)
+        const planStart = new Date(activePlan.weekStartDate);
+
+        // Calculate plan end date based on duration
+        const durationWeeks = activePlan.durationWeeks || 4; // Default to 4 weeks if not set
+        const totalDays = durationWeeks * 7;
+        const planEnd = new Date(planStart);
+        planEnd.setDate(planStart.getDate() + totalDays - 1);
+        const planEndStr = planEnd.toISOString().split("T")[0];
+
+        // Generate days array for FULL plan duration
+        const days: Array<{
+            date: string;
+            label: string;
+            labelAr: string;
+            dayNum: number;
+            status: "completed" | "partial" | "missed" | "upcoming";
+            isToday: boolean;
+            weekNumber: number; // Which week of the plan this day belongs to
+        }> = [];
+
+        // Get ALL meal completions for this client within plan duration
+        const allCompletions = await ctx.db
+            .query("mealCompletions")
+            .withIndex("by_client", (q) => q.eq("clientId", args.clientId))
+            .collect();
+
+        const planCompletions = allCompletions.filter(
+            (c) => c.date >= activePlan.weekStartDate && c.date <= planEndStr
+        );
+
+        // Get expected meals per day
+        let mealsPerDay = 4;
+        if (dietPlan?.meals) {
+            mealsPerDay = dietPlan.meals.length;
+        } else if (dietPlan?.dailyMeals) {
+            const dayMeals = [
+                dietPlan.dailyMeals.saturday?.meals.length,
+                dietPlan.dailyMeals.sunday?.meals.length,
+                dietPlan.dailyMeals.monday?.meals.length,
+                dietPlan.dailyMeals.tuesday?.meals.length,
+                dietPlan.dailyMeals.wednesday?.meals.length,
+                dietPlan.dailyMeals.thursday?.meals.length,
+                dietPlan.dailyMeals.friday?.meals.length,
+            ].filter((n): n is number => n !== undefined);
+            if (dayMeals.length > 0) {
+                mealsPerDay = Math.max(...dayMeals);
+            }
+        }
+
+        let totalMeals = 0;
+        let completedMeals = 0;
+
+        // Build days array for FULL duration
+        for (let i = 0; i < totalDays; i++) {
+            const dayDate = new Date(planStart);
+            dayDate.setDate(planStart.getDate() + i);
+            const dateStr = dayDate.toISOString().split("T")[0];
+
+            const dayCompletions = planCompletions.filter((c) => c.date === dateStr);
+            const isToday = dateStr === todayStr;
+            const isPast = dayDate < today && !isToday;
+            const isFuture = dayDate > today;
+
+            // Which week of the plan (1-indexed)
+            const weekNumber = Math.floor(i / 7) + 1;
+
+            let status: "completed" | "partial" | "missed" | "upcoming";
+            if (isFuture) {
+                status = "upcoming";
+            } else if (dayCompletions.length >= mealsPerDay) {
+                status = "completed";
+            } else if (dayCompletions.length > 0) {
+                status = "partial";
+            } else if (isPast) {
+                status = "missed";
+            } else {
+                status = "upcoming";
+            }
+
+            if (!isFuture) {
+                totalMeals += mealsPerDay;
+                completedMeals += dayCompletions.length;
+            }
+
+            const dayOfWeekIndex = dayDate.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+            days.push({
+                date: dateStr,
+                label: DAY_LABELS_EN[dayOfWeekIndex],
+                labelAr: DAY_LABELS_AR[dayOfWeekIndex],
+                dayNum: dayDate.getDate(),
+                status,
+                isToday,
+                weekNumber,
+            });
+        }
+
+        const progressPercentage = totalMeals > 0 ? Math.round((completedMeals / totalMeals) * 100) : 0;
+
+        // Calculate current week number (which week we're in now)
+        const daysSinceStart = Math.floor((today.getTime() - planStart.getTime()) / (24 * 60 * 60 * 1000));
+        const currentWeek = Math.min(Math.floor(daysSinceStart / 7) + 1, durationWeeks);
+
+        // Get meals for selected day
+        const selectedDayDate = new Date(selectedDate);
+        const selectedDayOfWeek = selectedDayDate.getDay();
+        const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
+        let mealsForDay: Array<{
+            id: string;
+            name: string;
+            nameAr: string;
+            time: string;
+            isCompleted: boolean;
+            completedAt?: number;
+            imageUrl?: string;
+        }> = [];
+
+        if (dietPlan) {
+            const dayCompletions = planCompletions.filter((c) => c.date === selectedDate);
+            const completedMealIds = new Set(dayCompletions.map((c) => c.mealId));
+
+            if (dietPlan.format === "general" && dietPlan.meals) {
+                mealsForDay = dietPlan.meals.map((meal) => ({
+                    id: meal.id,
+                    name: meal.name,
+                    nameAr: meal.nameAr || meal.name,
+                    time: meal.time || "12:00",
+                    isCompleted: completedMealIds.has(meal.id),
+                    completedAt: dayCompletions.find((c) => c.mealId === meal.id)?.completedAt,
+                }));
+            } else if (dietPlan.format === "daily" && dietPlan.dailyMeals) {
+                const dayName = dayNames[selectedDayOfWeek];
+                const dayData = dietPlan.dailyMeals[dayName];
+                if (dayData?.meals) {
+                    mealsForDay = dayData.meals.map((meal) => ({
+                        id: meal.id,
+                        name: meal.name,
+                        nameAr: meal.nameAr || meal.name,
+                        time: meal.time || "12:00",
+                        isCompleted: completedMealIds.has(meal.id),
+                        completedAt: dayCompletions.find((c) => c.mealId === meal.id)?.completedAt,
+                    }));
+                }
+            }
+        }
+
+        // Assignment date (when the plan was created/assigned)
+        const assignedAt = activePlan.createdAt;
+        const assignedDate = new Date(assignedAt).toISOString().split("T")[0];
+
+        return {
+            plan: {
+                id: activePlan._id,
+                name: dietPlan?.name || "Custom Plan",
+                nameAr: dietPlan?.nameAr || dietPlan?.name || "خطة مخصصة",
+                emoji: dietPlan?.emoji || TYPE_TO_DEFAULT_EMOJI[dietPlan?.type || "custom"] || "🥗",
+                startDate: activePlan.weekStartDate,
+                assignedDate, // When doctor assigned the plan
+                planEndDate: planEndStr, // When plan ends
+                type: dietPlan?.type || "custom",
+                currentWeek, // Current week (1-indexed)
+                totalWeeks: durationWeeks, // Total weeks in plan
+                durationWeeks,
+            },
+            weeklyStats: {
+                totalMeals,
+                completedMeals,
+                progressPercentage,
+                mealsPerDay,
+                totalDays,
+                daysCompleted: days.filter(d => d.status === "completed" || d.status === "partial").length,
+            },
+            days,
+            meals: mealsForDay,
+            selectedDate,
+        };
+    },
+});

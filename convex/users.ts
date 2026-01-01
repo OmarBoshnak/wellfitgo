@@ -981,3 +981,45 @@ export const assignChatDoctor = mutation({
         };
     },
 });
+
+/**
+ * Save the user's Expo push notification token
+ * Called when the app starts and gets push permissions
+ */
+export const savePushToken = mutation({
+    args: {
+        expoPushToken: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const user = await requireAuth(ctx);
+
+        // Validate it's an Expo push token format
+        if (!args.expoPushToken.startsWith("ExponentPushToken[")) {
+            throw new Error("Invalid Expo push token format");
+        }
+
+        await ctx.db.patch(user._id, {
+            expoPushToken: args.expoPushToken,
+            updatedAt: Date.now(),
+        });
+
+        return { success: true };
+    },
+});
+
+/**
+ * Remove the user's push token (e.g., on logout)
+ */
+export const removePushToken = mutation({
+    args: {},
+    handler: async (ctx) => {
+        const user = await requireAuth(ctx);
+
+        await ctx.db.patch(user._id, {
+            expoPushToken: undefined,
+            updatedAt: Date.now(),
+        });
+
+        return { success: true };
+    },
+});

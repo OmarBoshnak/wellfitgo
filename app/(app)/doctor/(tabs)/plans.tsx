@@ -14,7 +14,7 @@ import {
     useDoctorPlansMutations,
 } from '@/src/features/meals';
 import type { DoctorPlanItem, DraftPlanItem } from '@/src/features/meals';
-import MealPlanCreator from '@/src/features/doctor/components/plans/MealPlanCreator';
+import ClientProgressView from '@/src/features/doctor/components/plans/ClientProgressView';
 
 const t = {
     plans: isRTL ? 'الخطط' : 'Plans',
@@ -70,7 +70,7 @@ export default function PlansScreen() {
     const [selectedMeal, setSelectedMeal] = useState<any>(null);
     const [selectedPlan, setSelectedPlan] = useState<DoctorPlanItem | null>(null);
     const [showAssignModal, setShowAssignModal] = useState(false);
-    const [showMealPlanCreator, setShowMealPlanCreator] = useState(false);
+    const [showClientProgress, setShowClientProgress] = useState(false);
     const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
     const [customCategories, setCustomCategories] = useState<{
         id: string;
@@ -123,7 +123,7 @@ export default function PlansScreen() {
 
     const handleViewPlanDetails = (plan: any) => {
         setSelectedPlan(plan);
-        setShowMealPlanCreator(true);
+        setShowClientProgress(true);
     };
 
     const handleCreateCategory = (category: {
@@ -498,14 +498,14 @@ export default function PlansScreen() {
                 }}
             />
 
-            {/* Meal Plan Creator Full Screen */}
-            {showMealPlanCreator && selectedPlan && (
+            {/* Client Progress View Full Screen */}
+            {showClientProgress && selectedPlan && (
                 <View style={styles.fullScreenOverlay}>
-                    <MealPlanCreator
+                    <ClientProgressView
                         clientId={selectedPlan.clientId}
                         clientName={selectedPlan.clientName}
                         clientAvatar={selectedPlan.avatar ?? undefined}
-                        onBack={() => setShowMealPlanCreator(false)}
+                        onBack={() => setShowClientProgress(false)}
                     />
                 </View>
             )}

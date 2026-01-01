@@ -116,4 +116,29 @@ export const t = {
     deleteCategory: isRTL ? 'حذف الفئة' : 'Delete Category',
     deleteCategoryConfirm: isRTL ? 'هل أنت متأكد من حذف هذه الفئة؟' : 'Are you sure you want to delete this category?',
     atLeastOneMeal: isRTL ? 'يجب إضافة فئة واحدة على الأقل' : 'Please add at least one category to a meal',
+
+    // Dashboard
+    active: isRTL ? 'نشط' : 'Active',
+    thisWeek: isRTL ? 'هذا الأسبوع' : 'This Week',
+    mealsDone: isRTL ? 'وجبات مكتملة' : 'Meals Done',
+    reminderSet: isRTL ? 'تم ضبط التذكير' : 'Reminder Set',
+    viewPlan: isRTL ? 'عرض الخطة' : 'View Plan',
+    remind: isRTL ? 'تذكير' : 'Remind',
+    contactCoach: isRTL ? 'تواصل مع المدرب' : 'Contact Coach',
+    weekLabel: isRTL ? 'الأسبوع' : 'Week',
+    started: isRTL ? 'بدأت' : 'Started',
+    ongoingPlan: isRTL ? 'مستمر' : 'Ongoing',
+    noActivePlan: isRTL ? 'لا توجد خطة نشطة' : 'No Active Plan',
+    today: isRTL ? 'اليوم' : 'Today',
+    completed: isRTL ? 'مكتمل' : 'Completed',
+    scheduled: isRTL ? 'مجدول' : 'Scheduled',
+
+    // Day Abbreviations (Saturday first)
+    daySat: isRTL ? 'السبت' : 'Sat',
+    daySun: isRTL ? 'الأحد' : 'Sun',
+    dayMon: isRTL ? 'الإثنين' : 'Mon',
+    dayTue: isRTL ? 'الثلاثاء' : 'Tue',
+    dayWed: isRTL ? 'الأربعاء' : 'Wed',
+    dayThu: isRTL ? 'الخميس' : 'Thu',
+    dayFri: isRTL ? 'الجمعة' : 'Fri',
 };
