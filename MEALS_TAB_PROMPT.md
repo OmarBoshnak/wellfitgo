@@ -14,6 +14,11 @@ The goal is to switch entirely to **Convex** for state management, ensuring that
 
 ### 2. Backend Integration (Convex)
 
+#### 🔐 Authorization Rules
+*   Queries and mutations must resolve data **only for the authenticated client**.
+*   The client must never be able to read other users’ meal plans.
+*   Doctor-side changes propagate via Convex reactivity; no client-side polling.
+
 #### A. New Query: `api.meals.getMyFullMealHistory`
 *   **Arguments:** `month: number`, `year: number`.
 *   **Returns:** A map of date strings (`YYYY-MM-DD`) to completion status (`{ total: number, completed: number }`).
@@ -24,6 +29,7 @@ The goal is to switch entirely to **Convex** for state management, ensuring that
 *   **Returns:**
     *   `activePlan`: Metadata about the current active `weeklyMealPlan` (Name, Description, Tags, Start Date).
     *   `meals`: Array of meals for that specific date.
+        *   **Requirement:** Each meal must include a stable `mealId` (Convex `_id`) to ensure correct FlatList keying and prevent UI flicker.
         *   Include `completionStatus` (boolean or timestamp) by checking `mealCompletions` table.
         *   Include `selectedOption` if applicable.
 *   **Logic:**
@@ -34,6 +40,10 @@ The goal is to switch entirely to **Convex** for state management, ensuring that
 *   **`completeMeal`:** Create/Update `mealCompletions` record.
 *   **`uncompleteMeal`:** Remove `mealCompletions` record.
 *   **`requestPlanChange`:** Create a `clientNotes` or `notifications` record for the coach.
+*   **UX Expectations:**
+    *   Mutations should be optimistic where possible.
+    *   UI should immediately reflect toggle state while Convex syncs.
+    *   Roll back UI state if mutation fails.
 
 ### 3. Critical Technical Constraints
 
@@ -63,7 +73,8 @@ The goal is to switch entirely to **Convex** for state management, ensuring that
 ## ✅ Definition of Done
 - [ ] No Redux dependencies in `meals.tsx`.
 - [ ] "Calendar" dots reflect real backend history using local timezone.
-- [ ] "Today's Meals" list updates instantly when toggled.
+- [ ] "Today's Meals" list updates instantly when toggled (Optimistic UX).
 - [ ] Assigning a new plan in Convex (via Admin) immediately reflects in the App.
+- [ ] Data access is strictly limited to the authenticated user.
 - [ ] Loading and Error states are handled gracefully.
 - [ ] Arabic/RTL layout is preserved.
