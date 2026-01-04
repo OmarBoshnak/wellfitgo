@@ -1,13 +1,14 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, ArrowRight, Search, Users, Utensils } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Search, Users, Utensils, Trash2, Plus } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { useDietsByType, type DietPlan, type DietType } from '../hooks/useDietsByType';
+import { usePlanMutations } from '../hooks/usePlanMutations';
 
 // ============ TRANSLATIONS ============
 const t = {
@@ -23,6 +24,10 @@ const t = {
     loading: isRTL ? 'جاري التحميل...' : 'Loading...',
     noPlans: isRTL ? 'لا توجد خطط' : 'No plans available',
     noPlansDesc: isRTL ? 'أنشئ خطة غذائية للبدء' : 'Create a diet plan to get started',
+    delete: isRTL ? 'حذف' : 'Delete',
+    deleteConfirm: isRTL ? 'هل أنت متأكد من حذف هذه الخطة؟' : 'Are you sure you want to delete this diet plan?',
+    deleteSuccess: isRTL ? 'تم حذف الخطة بنجاح' : 'Diet plan deleted successfully',
+    deleteError: isRTL ? 'فشل في حذف الخطة' : 'Failed to delete diet plan',
 };
 
 // ============ PROPS TYPE ============
@@ -38,14 +43,45 @@ interface Props {
     onAssign: (diet: DietPlan) => void;
     onView: (diet: DietPlan) => void;
     onEdit: (diet: DietPlan) => void;
+    onCreateNew?: (categoryId: string, categoryType: string) => void;
 }
 
 // ============ COMPONENT ============
-export default function DietPlansList({ category, onBack, onAssign, onView, onEdit }: Props) {
+export default function DietPlansList({ category, onBack, onAssign, onView, onEdit, onCreateNew }: Props) {
     // Fetch diet plans for this category type
     const { diets, isLoading } = useDietsByType(category.id as DietType);
+    const { deleteDietPlan } = usePlanMutations();
     const insets = useSafeAreaInsets();
 
+    // ============ DELETE HANDLER ============
+    const handleDelete = (diet: DietPlan) => {
+        Alert.alert(
+            t.delete,
+            `${t.deleteConfirm}\n\n"${diet.name}"`,
+            [
+                { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+                {
+                    text: t.delete,
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteDietPlan(diet.id);
+                            Alert.alert(
+                                isRTL ? 'تم الحذف' : 'Deleted',
+                                t.deleteSuccess
+                            );
+                        } catch (error) {
+                            console.error('Delete failed:', error);
+                            Alert.alert(
+                                isRTL ? 'خطأ' : 'Error',
+                                t.deleteError
+                            );
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     // ============ RENDER HELPERS ============
     const BackArrow = () => isRTL
@@ -73,10 +109,31 @@ export default function DietPlansList({ category, onBack, onAssign, onView, onEd
 
     const renderBanner = () => (
         <View style={[styles.banner, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-            <Text style={styles.bannerEmoji}>{category.emoji || '🥗'}</Text>
-            <Text style={[styles.bannerText, { textAlign: isRTL ? 'left' : 'right' }]}>
-                {category.description || t.chooseDiet}
-            </Text>
+            <View style={[styles.bannerContent, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <Text style={styles.bannerEmoji}>{category.emoji || '🥗'}</Text>
+                <Text style={[styles.bannerText, { textAlign: isRTL ? 'left' : 'right' }]}>
+                    {category.description || t.chooseDiet}
+                </Text>
+            </View>
+            {onCreateNew && (
+                <TouchableOpacity
+                    onPress={() => {
+                        // For custom categories (ID starts with 'custom_'), use 'custom' as the type
+                        const dietType = category.id.startsWith('custom_') ? 'custom' : category.id;
+                        onCreateNew(category.id, dietType);
+                    }}
+                    activeOpacity={0.9}
+                >
+                    <LinearGradient
+                        colors={gradients.primary}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.addButton}
+                    >
+                        <Plus size={horizontalScale(22)} color="#FFFFFF" strokeWidth={2.5} />
+                    </LinearGradient>
+                </TouchableOpacity>
+            )}
         </View>
     );
 
@@ -106,6 +163,14 @@ export default function DietPlansList({ category, onBack, onAssign, onView, onEd
                         <Text style={styles.dietNameAr}>{diet.nameAr}</Text>
                     )}
                 </View>
+                <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDelete(diet)}
+                    activeOpacity={0.7}
+                >
+                    <Trash2 size={horizontalScale(16)} color="#EF4444" />
+                </TouchableOpacity>
+
             </View>
 
             {/* Calories Badge (if available) */}
@@ -246,10 +311,29 @@ const styles = StyleSheet.create({
         borderRadius: horizontalScale(12),
         padding: horizontalScale(16),
         alignItems: 'center',
+        justifyContent: 'space-between',
         gap: horizontalScale(16),
         marginBottom: verticalScale(20),
         borderWidth: 1,
         borderColor: colors.border,
+        flexDirection: 'row',
+    },
+    bannerContent: {
+        flex: 1,
+        alignItems: 'center',
+        gap: horizontalScale(16),
+    },
+    addButton: {
+        width: horizontalScale(48),
+        height: horizontalScale(48),
+        borderRadius: horizontalScale(24),
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#5073FE',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 6,
     },
     bannerEmoji: {
         fontSize: ScaleFontSize(32),
@@ -383,6 +467,11 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         color: colors.textPrimary,
         fontWeight: '500',
+    },
+    deleteButton: {
+        borderRadius: horizontalScale(8),
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     // Loading State
     loadingContainer: {

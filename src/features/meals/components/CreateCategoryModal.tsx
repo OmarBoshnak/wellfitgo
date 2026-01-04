@@ -53,7 +53,7 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
     const [description, setDescription] = useState('');
     const [autoGenerateRanges, setAutoGenerateRanges] = useState(true);
 
-    const { createDietPlan, isLoading, error } = usePlanMutations();
+    const { createDietCategory, isLoading, error } = usePlanMutations();
 
     const resetForm = () => {
         setSelectedEmoji('🥗');
@@ -65,12 +65,12 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
 
     const handleCreate = async () => {
         try {
-            await createDietPlan({
+            await createDietCategory({
                 name: nameEn.trim(),
                 nameAr: nameAr.trim() || undefined,
                 emoji: selectedEmoji,
                 description: description.trim() || undefined,
-                type: 'custom', // New categories default to custom type
+                autoGenerateRanges,
             });
 
             resetForm();
@@ -99,7 +99,7 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
                     </View>
 
                     {/* Header */}
-                    <View style={[styles.header, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <Text style={styles.headerTitle}>{t.createCategory}</Text>
                         <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                             <X size={horizontalScale(24)} color={colors.textSecondary} />
@@ -121,15 +121,10 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
                     >
                         {/* Icon Selection */}
                         <View style={styles.section}>
-                            <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                            <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                 {t.chooseIcon}
                             </Text>
                             <View style={styles.iconGrid}>
-                                {/* Custom Upload Button */}
-                                <TouchableOpacity style={styles.uploadButton}>
-                                    <ImagePlus size={horizontalScale(20)} color={colors.primaryDark} />
-                                </TouchableOpacity>
-
                                 {/* Icon Options */}
                                 {ICON_OPTIONS.map((emoji, index) => (
                                     <TouchableOpacity
@@ -150,7 +145,7 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
                         <View style={styles.formSection}>
                             {/* English Name */}
                             <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                     {t.categoryNameEn}
                                 </Text>
                                 <TextInput
@@ -165,11 +160,11 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
 
                             {/* Arabic Name */}
                             <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                     {t.categoryNameAr}
                                 </Text>
                                 <TextInput
-                                    style={[styles.input, { textAlign: 'right' }]}
+                                    style={[styles.input, { textAlign: isRTL ? 'right' : 'left' }]}
                                     placeholder={t.enterCategoryNameAr}
                                     placeholderTextColor={colors.textSecondary}
                                     value={nameAr}
@@ -180,7 +175,7 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
 
                             {/* Description */}
                             <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                <Text style={[styles.label, { textAlign: isRTL ? 'left' : 'right' }]}>
                                     {t.description}
                                 </Text>
                                 <TextInput
@@ -199,12 +194,12 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
 
                         {/* Toggle Switch Section */}
                         <View style={styles.toggleSection}>
-                            <View style={[styles.toggleCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                            <View style={[styles.toggleCard, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                 <View style={styles.toggleInfo}>
-                                    <Text style={[styles.toggleTitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                    <Text style={[styles.toggleTitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                                         {t.baseCalorieRanges}
                                     </Text>
-                                    <Text style={[styles.toggleSubtitle, { textAlign: isRTL ? 'right' : 'left' }]}>
+                                    <Text style={[styles.toggleSubtitle, { textAlign: isRTL ? 'left' : 'right' }]}>
                                         {t.autoGenerate}
                                     </Text>
                                 </View>
@@ -215,14 +210,9 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
                                     thumbColor="#FFFFFF"
                                     ios_backgroundColor="#E2E8F0"
                                     disabled={isLoading}
+                                    style={{ transform: [{ rotate: '180deg' }] }}
                                 />
                             </View>
-
-                            {/* Configure Custom Link */}
-                            <TouchableOpacity style={[styles.configureLink, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                                <Settings2 size={horizontalScale(16)} color={colors.primaryDark} />
-                                <Text style={styles.configureLinkText}>{t.configureCustom}</Text>
-                            </TouchableOpacity>
                         </View>
 
                         {/* Spacer for scroll clearance */}
@@ -230,7 +220,7 @@ export default function CreateCategoryModal({ visible, onClose, onSuccess }: Pro
                     </ScrollView>
 
                     {/* Footer */}
-                    <View style={[styles.footer, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                    <View style={[styles.footer, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                         <TouchableOpacity style={styles.cancelButton} onPress={handleClose} disabled={isLoading}>
                             <Text style={styles.cancelButtonText}>{t.cancel}</Text>
                         </TouchableOpacity>

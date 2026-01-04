@@ -49,16 +49,6 @@ export function ActionButtons({
                     </LinearGradient>
                 </TouchableOpacity>
 
-                {/* Create Meal Plan Button */}
-                <TouchableOpacity
-                    style={styles.secondaryAction}
-                    activeOpacity={0.7}
-                    onPress={() => setShowDietSelector(true)}
-                >
-                    <FileText size={horizontalScale(18)} color={colors.primaryDark} />
-                    <Text style={styles.secondaryActionText}>{t.createMealPlan}</Text>
-                </TouchableOpacity>
-
                 {/* Schedule Call Button */}
                 <TouchableOpacity
                     style={styles.secondaryAction}
@@ -70,18 +60,6 @@ export function ActionButtons({
                 </TouchableOpacity>
             </View>
 
-            {/* Diet Plan Selector Modal */}
-            {client && (
-                <DietPlanSelector
-                    visible={showDietSelector}
-                    clientId={client.id}
-                    clientName={client.name}
-                    onClose={() => setShowDietSelector(false)}
-                    onSuccess={() => {
-                        // Optionally refresh the meal plan tab
-                    }}
-                />
-            )}
         </>
     );
 }

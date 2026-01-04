@@ -18,6 +18,7 @@ import type * as clients from "../clients.js";
 import type * as coachProfiles from "../coachProfiles.js";
 import type * as doctorPlans from "../doctorPlans.js";
 import type * as mealCompletions from "../mealCompletions.js";
+import type * as meals from "../meals.js";
 import type * as plans from "../plans.js";
 import type * as recentActivity from "../recentActivity.js";
 import type * as users from "../users.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   coachProfiles: typeof coachProfiles;
   doctorPlans: typeof doctorPlans;
   mealCompletions: typeof mealCompletions;
+  meals: typeof meals;
   plans: typeof plans;
   recentActivity: typeof recentActivity;
   users: typeof users;

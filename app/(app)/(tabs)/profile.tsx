@@ -968,7 +968,13 @@ const styles = StyleSheet.create({
 
     // Section
     sectionTitle: { fontSize: ScaleFontSize(18), fontWeight: '600', color: colors.textPrimary, marginBottom: 12, paddingHorizontal: 4 },
-    section: { backgroundColor: colors.bgPrimary, borderRadius: 16, marginBottom: 24, overflow: 'hidden', ...shadows.light },
+    section: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: 16,
+        marginBottom: 24,
+        overflow: 'hidden',
+        ...shadows.light
+    },
 
     // Rows
     row: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
@@ -993,7 +999,13 @@ const styles = StyleSheet.create({
     messageButtonText: { fontSize: ScaleFontSize(14), color: colors.white, fontWeight: '600' },
 
     // Info Row
-    infoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 56 },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        height: 56
+    },
     infoLabel: { fontSize: ScaleFontSize(14), color: colors.textSecondary },
     infoValueContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     infoValue: { fontSize: ScaleFontSize(16), color: colors.textPrimary },
@@ -1068,8 +1080,17 @@ const styles = StyleSheet.create({
     sheetOptionDanger: { backgroundColor: 'rgba(239, 83, 80, 0.1)' },
     sheetOptionText: { fontSize: ScaleFontSize(16), color: colors.textPrimary },
     sheetCancel: { alignItems: 'center', paddingVertical: 12 },
-    sheetCancelText: { fontSize: ScaleFontSize(16), color: colors.textSecondary },
-    confirmSheet: { backgroundColor: colors.bgPrimary, borderRadius: 24, margin: 16, padding: 24 },
+    sheetCancelText: {
+        fontSize: ScaleFontSize(16),
+        color: colors.textSecondary
+    },
+    confirmSheet: {
+        backgroundColor: colors.bgPrimary,
+        borderRadius: 24,
+        margin: 16,
+        padding: 24,
+        alignItems: 'center'
+    },
     confirmTitle: { fontSize: ScaleFontSize(18), fontWeight: '600', color: colors.textPrimary, textAlign: 'center', marginBottom: 8 },
     confirmMessage: { fontSize: ScaleFontSize(14), color: colors.textSecondary, textAlign: 'center', marginBottom: 24 },
     confirmButtons: { flexDirection: 'row', gap: 12 },

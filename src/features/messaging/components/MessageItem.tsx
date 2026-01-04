@@ -127,7 +127,7 @@ export default function MessageItem({ message, onPress, onArchive, onDelete }: P
                         </Text>
                         <Text style={[styles.timestamp, { textAlign: isRTL ? 'left' : 'right' }]}>{message.timestamp}</Text>
                     </View>
-                    <View style={[styles.messageRow, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                    <View style={[styles.messageRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                         {isUnread && (
                             <View style={styles.unreadBadge}>
                                 <Text style={styles.unreadCount}>{message.unreadCount}</Text>
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
         fontWeight: '400',
         color: colors.textSecondary,
         lineHeight: ScaleFontSize(20),
-        textAlign: 'right',
+        marginHorizontal: horizontalScale(8),
     },
     unreadBadge: {
         minWidth: horizontalScale(20),

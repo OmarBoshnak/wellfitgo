@@ -115,19 +115,19 @@ export function NotificationPanel({
             {/* Content */}
             <View style={styles.contentContainer}>
                 <Text
-                    style={[styles.notificationTitle, { textAlign: isRTL ? 'right' : 'left' }]}
+                    style={[styles.notificationTitle, { textAlign: isRTL ? 'left' : 'left' }]}
                     numberOfLines={1}
                 >
                     {item.title}
                 </Text>
                 <Text
-                    style={[styles.notificationSubtitle, { textAlign: isRTL ? 'right' : 'left' }]}
+                    style={[styles.notificationSubtitle, { textAlign: isRTL ? 'left' : 'left' }]}
                     numberOfLines={2}
                 >
                     {item.subtitle}
                 </Text>
                 <Text
-                    style={[styles.timestamp, { textAlign: isRTL ? 'right' : 'left' }]}
+                    style={[styles.timestamp, { textAlign: isRTL ? 'left' : 'left' }]}
                 >
                     {item.relativeTime}
                 </Text>

@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { getCurrentUser } from "./auth";
 
 // ============ TYPE MAPPINGS ============
@@ -59,6 +60,7 @@ const TYPE_TO_DEFAULT_EMOJI: Record<string, string> = {
 
 /**
  * Get diet categories by aggregating dietPlans by type
+ * Also includes custom categories from dietCategories table
  * Returns categories with counts of active plans
  */
 export const getDietCategories = query({
@@ -87,6 +89,13 @@ export const getDietCategories = query({
 
         for (const plan of allPlans) {
             const type = plan.type;
+
+            // Skip plans that belong to a specific custom category (have categoryId)
+            // These will be counted in the custom categories section
+            if (plan.categoryId) {
+                continue;
+            }
+
             const existing = categoryMap.get(type);
 
             if (existing) {
@@ -108,8 +117,8 @@ export const getDietCategories = query({
             }
         }
 
-        // Convert to array with proper structure
-        const categories = Array.from(categoryMap.entries()).map(([type, data]) => {
+        // Convert to array with proper structure (built-in categories)
+        const builtInCategories = Array.from(categoryMap.entries()).map(([type, data]) => {
             // Sort plans by updatedAt descending to get most recent
             const sortedPlans = data.plans.sort((a, b) => b.updatedAt - a.updatedAt);
 
@@ -123,16 +132,53 @@ export const getDietCategories = query({
                 nameAr: TYPE_TO_NAME_AR[type] ?? type,
                 emoji,
                 count: data.count,
+                isCustom: false,
             };
         });
 
-        // Sort categories by count (most plans first), then by name
-        categories.sort((a, b) => {
+        // Fetch custom categories from dietCategories table
+        const customCategories = await ctx.db
+            .query("dietCategories")
+            .withIndex("by_active", (q) => q.eq("isActive", true))
+            .collect();
+
+        // Count diet plans for each custom category
+        const customCategoriesWithCounts = await Promise.all(
+            customCategories.map(async (category) => {
+                // Count plans that have this custom category ID
+                const plansInCategory = await ctx.db
+                    .query("dietPlans")
+                    .withIndex("by_category", (q) => q.eq("categoryId", category._id))
+                    .filter((q) => q.eq(q.field("isActive"), true))
+                    .collect();
+
+                return {
+                    id: `custom_${category._id}`,
+                    name: category.name,
+                    nameAr: category.nameAr ?? category.name,
+                    emoji: category.emoji,
+                    description: category.description,
+                    count: plansInCategory.length,
+                    isCustom: true,
+                };
+            })
+        );
+
+        // Combine built-in and custom categories
+        const allCategories = [...builtInCategories, ...customCategoriesWithCounts];
+
+        // Sort categories: built-in first (by count), then custom (by name)
+        allCategories.sort((a, b) => {
+            // Custom categories go last
+            if (a.isCustom !== b.isCustom) {
+                return a.isCustom ? 1 : -1;
+            }
+            // Within same group, sort by count then name
             if (b.count !== a.count) return b.count - a.count;
             return a.name.localeCompare(b.name);
         });
 
-        return categories;
+        return allCategories;
     },
 });
 
@@ -142,31 +188,34 @@ export const getDietCategories = query({
  */
 export const getDietsByType = query({
     args: {
-        type: v.union(
-            v.literal("keto"),
-            v.literal("weekly"),
-            v.literal("classic"),
-            v.literal("low_carb"),
-            v.literal("high_protein"),
-            v.literal("intermittent_fasting"),
-            v.literal("vegetarian"),
-            v.literal("maintenance"),
-            v.literal("muscle_gain"),
-            v.literal("medical"),
-            v.literal("custom")
-        ),
+        type: v.string(),
     },
     handler: async (ctx, args) => {
         const user = await getCurrentUser(ctx);
         if (!user) return [];
 
-        // Fetch plans by type using index
-        const plans = await ctx.db
-            .query("dietPlans")
-            .withIndex("by_type_active", (q) =>
-                q.eq("type", args.type).eq("isActive", true)
-            )
-            .collect();
+        let plans;
+
+        // Check if querying by custom category ID
+        if (args.type.startsWith("custom_")) {
+            const categoryId = args.type.replace("custom_", "") as Id<"dietCategories">;
+
+            plans = await ctx.db
+                .query("dietPlans")
+                .withIndex("by_category", (q) => q.eq("categoryId", categoryId))
+                .filter((q) => q.eq(q.field("isActive"), true))
+                .collect();
+        } else {
+            // Standard type query
+            // We cast args.type to any to bypass TS check since we know it matches the union if not custom
+            // In a real scenario, we might want to validate it matches the union
+            plans = await ctx.db
+                .query("dietPlans")
+                .withIndex("by_type_active", (q) =>
+                    q.eq("type", args.type as any).eq("isActive", true)
+                )
+                .collect();
+        }
 
         // Transform and sort plans
         const result = plans.map((plan) => {
@@ -256,6 +305,54 @@ export const getDietDetails = query({
     },
 });
 
+/**
+ * Search diet plans by name or calories
+ * Returns matching diet plans for search functionality
+ */
+export const searchDietPlans = query({
+    args: {
+        query: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) return [];
+
+        const searchTerm = args.query.toLowerCase().trim();
+        if (searchTerm.length === 0) return [];
+
+        // Fetch all active diet plans
+        const allPlans = await ctx.db
+            .query("dietPlans")
+            .withIndex("by_active", (q) => q.eq("isActive", true))
+            .collect();
+
+        // Filter plans by name or targetCalories
+        const matchingPlans = allPlans.filter((plan) => {
+            // Check if name matches (case insensitive)
+            if (plan.name.toLowerCase().includes(searchTerm)) return true;
+            if (plan.nameAr && plan.nameAr.includes(searchTerm)) return true;
+
+            // Check if targetCalories matches (as string)
+            if (plan.targetCalories && plan.targetCalories.toString().includes(searchTerm)) return true;
+
+            // Check if description matches
+            if (plan.description && plan.description.toLowerCase().includes(searchTerm)) return true;
+
+            return false;
+        });
+
+        // Return results with minimal data for the search list
+        return matchingPlans.slice(0, 20).map((plan) => ({
+            id: plan._id,
+            name: plan.name,
+            nameAr: plan.nameAr,
+            emoji: plan.emoji ?? TYPE_TO_DEFAULT_EMOJI[plan.type] ?? "📋",
+            targetCalories: plan.targetCalories,
+            type: plan.type,
+        }));
+    },
+});
+
 // ============ MUTATIONS ============
 
 /**
@@ -276,45 +373,7 @@ const DIET_PLAN_TYPE = v.union(
 );
 
 /**
- * Create a new diet plan
- */
-export const createDietPlan = mutation({
-    args: {
-        name: v.string(),
-        nameAr: v.optional(v.string()),
-        emoji: v.optional(v.string()),
-        description: v.optional(v.string()),
-        type: DIET_PLAN_TYPE,
-        targetCalories: v.optional(v.number()),
-        tags: v.optional(v.array(v.string())),
-    },
-    handler: async (ctx, args) => {
-        const user = await getCurrentUser(ctx);
-        if (!user) throw new Error("Unauthorized");
-
-        const now = Date.now();
-
-        const planId = await ctx.db.insert("dietPlans", {
-            name: args.name,
-            nameAr: args.nameAr,
-            emoji: args.emoji ?? TYPE_TO_DEFAULT_EMOJI[args.type] ?? "📋",
-            description: args.description,
-            type: args.type,
-            targetCalories: args.targetCalories,
-            tags: args.tags ?? [],
-            format: "general",
-            isActive: true,
-            usageCount: 0,
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        return planId;
-    },
-});
-
-/**
- * Meal structure validator for updateDietPlan
+ * Meal structure validator for diet plan mutations
  */
 const mealValidator = v.object({
     id: v.string(),
@@ -335,6 +394,49 @@ const mealValidator = v.object({
             textEn: v.optional(v.string()),
         })),
     })),
+});
+
+/**
+ * Create a new diet plan
+ */
+export const createDietPlan = mutation({
+    args: {
+        name: v.string(),
+        nameAr: v.optional(v.string()),
+        emoji: v.optional(v.string()),
+        description: v.optional(v.string()),
+        type: DIET_PLAN_TYPE,
+        categoryId: v.optional(v.id("dietCategories")),
+        targetCalories: v.optional(v.number()),
+        tags: v.optional(v.array(v.string())),
+        // Optional meals array for creating a plan with existing meals
+        meals: v.optional(v.array(mealValidator)),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) throw new Error("Unauthorized");
+
+        const now = Date.now();
+
+        const planId = await ctx.db.insert("dietPlans", {
+            name: args.name,
+            nameAr: args.nameAr,
+            emoji: args.emoji ?? TYPE_TO_DEFAULT_EMOJI[args.type] ?? "📋",
+            description: args.description,
+            type: args.type,
+            categoryId: args.categoryId,
+            targetCalories: args.targetCalories,
+            tags: args.tags ?? [],
+            format: "general",
+            meals: args.meals, // Include meals if provided
+            isActive: true,
+            usageCount: 0,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        return planId;
+    },
 });
 
 /**
@@ -371,11 +473,99 @@ export const updateDietPlan = mutation({
         if (updates.targetCalories !== undefined) patchData.targetCalories = updates.targetCalories;
         if (updates.tags !== undefined) patchData.tags = updates.tags;
         if (updates.isActive !== undefined) patchData.isActive = updates.isActive;
-        if (updates.meals !== undefined) patchData.meals = updates.meals;
+
+        // When updating meals, ensure format is set to "general"
+        // This is critical: if the plan was previously "daily" format,
+        // we need to switch it to "general" so it reads from the meals field
+        if (updates.meals !== undefined) {
+            patchData.meals = updates.meals;
+            patchData.format = "general";
+        }
 
         await ctx.db.patch(id, patchData);
 
         return id;
+    },
+});
+
+/**
+ * Delete a diet plan
+ */
+export const deleteDietPlan = mutation({
+    args: {
+        id: v.id("dietPlans"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) throw new Error("Unauthorized");
+
+        // Delete the diet plan
+        await ctx.db.delete(args.id);
+
+        return args.id;
+    },
+});
+
+// ============ CUSTOM DIET CATEGORIES ============
+
+/**
+ * Create a custom diet category
+ */
+export const createDietCategory = mutation({
+    args: {
+        name: v.string(),
+        nameAr: v.optional(v.string()),
+        emoji: v.string(),
+        description: v.optional(v.string()),
+        autoGenerateRanges: v.optional(v.boolean()),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) throw new Error("Unauthorized");
+
+        // Only coaches and admins can create categories
+        if (user.role !== "coach" && user.role !== "admin") {
+            throw new Error("Only coaches can create diet categories");
+        }
+
+        const now = Date.now();
+
+        const categoryId = await ctx.db.insert("dietCategories", {
+            name: args.name,
+            nameAr: args.nameAr,
+            emoji: args.emoji,
+            description: args.description,
+            autoGenerateRanges: args.autoGenerateRanges ?? false,
+            isActive: true,
+            createdBy: user._id,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        return categoryId;
+    },
+});
+
+/**
+ * Delete a custom diet category
+ */
+export const deleteDietCategory = mutation({
+    args: {
+        id: v.id("dietCategories"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        if (!user) throw new Error("Unauthorized");
+
+        // Only coaches and admins can delete categories
+        if (user.role !== "coach" && user.role !== "admin") {
+            throw new Error("Only coaches can delete diet categories");
+        }
+
+        // Delete the category
+        await ctx.db.delete(args.id);
+
+        return args.id;
     },
 });
 
@@ -653,12 +843,22 @@ export const assignPlanToClients = mutation({
             });
         }
 
+        // Collect avatars for assigned clients
+        const clientAvatars: string[] = [];
+        for (const clientId of args.clientIds) {
+            const client = await ctx.db.get(clientId);
+            if (client?.avatarUrl) {
+                clientAvatars.push(client.avatarUrl);
+            }
+        }
+
         return {
             success: successCount > 0,
             successCount,
             totalClients: args.clientIds.length,
             errors: errors.length > 0 ? errors : undefined,
             notifiedClients: notifiedClients.length > 0 ? notifiedClients : undefined,
+            clientAvatars: clientAvatars.length > 0 ? clientAvatars : undefined,
         };
     },
 });

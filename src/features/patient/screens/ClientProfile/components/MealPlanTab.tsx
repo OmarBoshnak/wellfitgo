@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, RefreshControl, Modal } from 'react-native';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -11,11 +11,13 @@ import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { t } from '../translations';
 import { DietPlanSelector } from './DietPlanSelector';
+import DietDetailsView from '@/src/features/meals/components/DietDetailsView';
 
 // ============ TYPES ============
 
 interface MealPlan {
     id: Id<"weeklyMealPlans">;
+    dietPlanId?: Id<"dietPlans">; // Reference to the assigned diet plan
     weekStartDate: string;
     weekEndDate: string;
     status: "draft" | "published" | "active" | "completed" | "archived";
@@ -77,6 +79,7 @@ export function MealPlanTab({ clientId, clientName }: MealPlanTabProps) {
     const [showDietSelector, setShowDietSelector] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [editingPlanId, setEditingPlanId] = useState<Id<"weeklyMealPlans"> | null>(null);
+    const [viewingDietId, setViewingDietId] = useState<Id<"dietPlans"> | null>(null);
 
     // ============ HANDLERS ============
 
@@ -118,10 +121,15 @@ export function MealPlanTab({ clientId, clientName }: MealPlanTabProps) {
         setShowDietSelector(true);
     };
 
-    const handleViewPlan = (planId: Id<"weeklyMealPlans">) => {
-        // Navigate to meal plan detail screen
-        // @ts-ignore - Route may not exist yet
-        router.push(`/(app)/doctor/meal-plan-details?planId=${planId}`);
+    const handleViewPlan = (dietPlanId: Id<"dietPlans"> | undefined) => {
+        if (dietPlanId) {
+            setViewingDietId(dietPlanId);
+        } else {
+            Alert.alert(
+                isRTL ? 'لا توجد خطة' : 'No Diet Plan',
+                isRTL ? 'لم يتم تعيين خطة غذائية لهذه الفترة' : 'No diet plan assigned to this period'
+            );
+        }
     };
 
     const handleCreatePlan = () => {
@@ -185,7 +193,7 @@ export function MealPlanTab({ clientId, clientName }: MealPlanTabProps) {
                 <View style={[styles.cardActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                     <TouchableOpacity
                         style={styles.actionButton}
-                        onPress={() => handleViewPlan(item.id)}
+                        onPress={() => handleViewPlan(item.dietPlanId)}
                     >
                         <Eye size={16} color={colors.primaryDark} />
                         <Text style={styles.actionText}>{t.viewPlan}</Text>
@@ -301,6 +309,22 @@ export function MealPlanTab({ clientId, clientName }: MealPlanTabProps) {
                 editMode={!!editingPlanId}
                 editPlanId={editingPlanId ?? undefined}
             />
+
+            {/* Diet Details View Modal */}
+            <Modal
+                visible={!!viewingDietId}
+                animationType="slide"
+                presentationStyle="fullScreen"
+                onRequestClose={() => setViewingDietId(null)}
+            >
+                {viewingDietId && (
+                    <DietDetailsView
+                        dietId={viewingDietId}
+                        onBack={() => setViewingDietId(null)}
+                        onAssign={() => setViewingDietId(null)}
+                    />
+                )}
+            </Modal>
         </View>
     );
 }

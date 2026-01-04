@@ -6,6 +6,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 // ============ TYPE DEFINITIONS ============
 
@@ -23,13 +24,14 @@ export type DietType =
     | "maintenance"
     | "muscle_gain"
     | "medical"
-    | "custom";
+    | "custom"
+    | (string & {}); // Allow any string (for custom category IDs) while preserving autocomplete
 
 /**
  * Diet plan as returned from Convex
  */
 export interface DietPlan {
-    id: string;
+    id: Id<"dietPlans">;
     name: string;
     nameAr?: string;
     description?: string;
@@ -44,7 +46,7 @@ export interface DietPlan {
 /**
  * Hook for fetching diet plans by type
  */
-export function useDietsByType(type: DietType) {
+export function useDietsByType(type: string) {
     const diets = useQuery(api.plans.getDietsByType, { type });
 
     const isLoading = diets === undefined;

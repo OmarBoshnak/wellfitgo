@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Modal, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, ArrowRight, Share2, MoreVertical, ChevronRight, ChevronDown, Users, Calendar, UserPlus } from 'lucide-react-native';
 import { colors, gradients } from '@/src/core/constants/Themes';
@@ -85,6 +85,10 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [isAssigning, setIsAssigning] = useState(false);
 
+    // State for success modal
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [assignedClients, setAssignedClients] = useState<{ count: number; avatars: string[] }>({ count: 0, avatars: [] });
+
     // Handle opening the assign modal
     const handleOpenAssignModal = useCallback(() => {
         setShowAssignModal(true);
@@ -107,11 +111,12 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
             setShowAssignModal(false);
 
             if (result.success) {
-                Alert.alert(
-                    t.assignSuccess,
-                    `${result.successCount}/${result.totalClients} ${t.clients}`,
-                    [{ text: 'OK', onPress: onAssign }]
-                );
+                // Show premium success modal instead of Alert
+                setAssignedClients({
+                    count: result.successCount ?? clientIds.length,
+                    avatars: result.clientAvatars ?? [],
+                });
+                setShowSuccessModal(true);
             } else {
                 Alert.alert(t.assignFailed, result.errors?.join('\n'));
             }
@@ -120,7 +125,7 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
         } finally {
             setIsAssigning(false);
         }
-    }, [dietId, assignMutation, onAssign]);
+    }, [dietId, assignMutation]);
 
     // ============ RESOLVE MEALS ============
     const mealsForUI = useMemo((): MealForUI[] => {
@@ -287,12 +292,13 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
     if (isLoading) {
         return (
             <View style={styles.container}>
-                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
+                    <Text style={styles.headerTitle}>{t.loading}</Text>
+                    <View style={styles.headerActions} />
                     <TouchableOpacity onPress={onBack} style={styles.headerButton}>
                         <BackArrow />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{t.loading}</Text>
-                    <View style={styles.headerActions} />
+
                 </View>
                 {renderLoadingState()}
             </View>
@@ -426,6 +432,102 @@ export default function DietDetailsView({ dietId, onBack, onAssign }: Props) {
                 onAssign={handleAssignToClients}
                 isAssigning={isAssigning}
             />
+
+            {/* Success Modal */}
+            <Modal visible={showSuccessModal} animationType="fade" transparent>
+                <View style={styles.successOverlay}>
+                    <View style={styles.successContent}>
+                        {/* Handle */}
+                        <View style={styles.successHandle} />
+
+                        {/* Check Icon with Glow */}
+                        <View style={styles.successIconContainer}>
+                            <View style={styles.successIconGlow} />
+                            <View style={styles.successIconCircle}>
+                                <Text style={styles.successCheckmark}>✓</Text>
+                            </View>
+                        </View>
+
+                        {/* Title */}
+                        <Text style={styles.successTitle}>
+                            {isRTL ? 'تم التعيين!' : 'Plan Assigned!'}
+                        </Text>
+
+                        {/* Subtitle */}
+                        <Text style={styles.successSubtitle}>
+                            <Text style={styles.successPlanName}>{plan?.name}</Text>
+                            {isRTL
+                                ? ` تم تعيينها لـ `
+                                : ` has been assigned to `}
+                            <Text style={styles.successClientCount}>
+                                {assignedClients.count} {isRTL ? 'عميل' : (assignedClients.count === 1 ? 'client' : 'clients')}
+                            </Text>
+                        </Text>
+
+                        {/* Avatar Group */}
+                        {assignedClients.count > 0 && (
+                            <View style={styles.avatarGroup}>
+                                {[...Array(Math.min(assignedClients.count, 3))].map((_, i) => (
+                                    <View key={i} style={[styles.avatarWrapper, { zIndex: 3 - i, marginLeft: i > 0 ? -12 : 0 }]}>
+                                        {assignedClients.avatars[i] ? (
+                                            <Image source={{ uri: assignedClients.avatars[i] }} style={styles.avatar} />
+                                        ) : (
+                                            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                                                <Text style={styles.avatarPlaceholderText}>👤</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                ))}
+                                {assignedClients.count > 3 && (
+                                    <View style={[styles.avatarWrapper, { zIndex: 0, marginLeft: -12 }]}>
+                                        <View style={[styles.avatar, styles.avatarMore]}>
+                                            <Text style={styles.avatarMoreText}>+{assignedClients.count - 3}</Text>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        {/* Action Buttons */}
+                        <View style={styles.successButtons}>
+                            {/* Primary Done Button */}
+                            <TouchableOpacity
+                                style={styles.successDoneButton}
+                                onPress={() => {
+                                    setShowSuccessModal(false);
+                                    onAssign();
+                                }}
+                                activeOpacity={0.9}
+                            >
+                                <LinearGradient
+                                    colors={['#28af62', '#2cc56f']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.successDoneGradient}
+                                >
+                                    <Text style={styles.successDoneText}>
+                                        {isRTL ? 'تم' : 'Done'}
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            {/* Secondary View Client Button */}
+                            <TouchableOpacity
+                                style={styles.successSecondaryButton}
+                                onPress={() => {
+                                    setShowSuccessModal(false);
+                                    onAssign();
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.successSecondaryText}>
+                                    {isRTL ? 'عرض العميل' : 'View Client'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -740,5 +842,156 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(16),
         color: '#FFFFFF',
         fontWeight: '700',
+    },
+    // Success Modal
+    successOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    successContent: {
+        width: 300,
+        backgroundColor: colors.bgPrimary,
+        borderRadius: 16,
+        paddingHorizontal: 24,
+        paddingBottom: 24,
+        paddingTop: 12,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    successHandle: {
+        width: 40,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: colors.border,
+        marginBottom: 16,
+    },
+    successIconContainer: {
+        position: 'relative',
+        marginBottom: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 80,
+        height: 80,
+    },
+    successIconGlow: {
+        position: 'absolute',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(40, 175, 98, 0.2)',
+    },
+    successIconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#28af62',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    successCheckmark: {
+        fontSize: 32,
+        color: '#FFFFFF',
+        fontWeight: '700',
+    },
+    successTitle: {
+        fontSize: ScaleFontSize(20),
+        fontWeight: '700',
+        color: '#526477',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    successSubtitle: {
+        fontSize: ScaleFontSize(14),
+        color: '#8093A5',
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 24,
+    },
+    successPlanName: {
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    successClientCount: {
+        fontWeight: '700',
+        color: '#1e293b',
+    },
+    avatarGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 32,
+    },
+    avatarWrapper: {
+        borderRadius: 20,
+        borderWidth: 2,
+        borderColor: colors.bgPrimary,
+    },
+    avatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: colors.bgSecondary,
+    },
+    avatarPlaceholder: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#e2e8f0',
+    },
+    avatarPlaceholderText: {
+        fontSize: 18,
+    },
+    avatarMore: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#28af62',
+    },
+    avatarMoreText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    successButtons: {
+        width: '100%',
+        gap: 12,
+    },
+    successDoneButton: {
+        width: '100%',
+        borderRadius: 12,
+        overflow: 'hidden',
+        shadowColor: '#28af62',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    successDoneGradient: {
+        paddingVertical: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    successDoneText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '600',
+        color: '#FFFFFF',
+    },
+    successSecondaryButton: {
+        width: '100%',
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(40, 175, 98, 0.4)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    successSecondaryText: {
+        fontSize: ScaleFontSize(14),
+        fontWeight: '500',
+        color: '#28af62',
     },
 });

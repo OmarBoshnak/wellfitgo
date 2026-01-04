@@ -216,7 +216,7 @@ export const ActivePlanDashboard: React.FC = () => {
                 <View style={[styles.header, isRTL && styles.headerRTL]}>
                     <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                         <Ionicons
-                            name={isRTL ? 'arrow-forward' : 'arrow-back'}
+                            name={isRTL ? 'arrow-back' : 'arrow-forward'}
                             size={24}
                             color={colors.textPrimary}
                         />
@@ -234,12 +234,12 @@ export const ActivePlanDashboard: React.FC = () => {
     const { plan, weeklyStats, days, meals } = planProgress;
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
             {/* Header */}
-            <View style={[styles.header, isRTL && styles.headerRTL]}>
+            <View style={[styles.header, isRTL && styles.headerRTL, { paddingTop: insets.top }]}>
                 <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                     <Ionicons
-                        name={isRTL ? 'arrow-forward' : 'arrow-back'}
+                        name={isRTL ? 'arrow-back' : 'arrow-forward'}
                         size={24}
                         color={colors.textPrimary}
                     />
@@ -349,15 +349,7 @@ export const ActivePlanDashboard: React.FC = () => {
             />
 
             {/* Sticky Bottom Actions */}
-            <View style={[styles.bottomActions, { paddingBottom: insets.bottom + verticalScale(16) }]}>
-                <TouchableOpacity style={styles.actionButton} onPress={handleViewPlan}>
-                    <Text style={styles.actionButtonText}>{t.viewPlan}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.actionButton} onPress={handleModify}>
-                    <Text style={styles.actionButtonText}>{t.modify}</Text>
-                </TouchableOpacity>
-
+            <View style={[styles.bottomActions, { paddingBottom: insets.bottom }]}>
                 <TouchableOpacity
                     style={styles.actionButtonPrimary}
                     onPress={handleRemind}
@@ -454,6 +446,7 @@ const styles = StyleSheet.create({
         padding: horizontalScale(20),
         overflow: 'hidden',
         position: 'relative',
+        marginVertical: verticalScale(16),
     },
     decorBlob1: {
         position: 'absolute',
@@ -479,7 +472,7 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start',
     },
     summaryContentRTL: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
     },
     summaryInfo: {
         flex: 1,
@@ -511,6 +504,8 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: colors.white,
         marginTop: verticalScale(8),
+        textAlign: 'center',
+        marginVertical: verticalScale(8),
     },
     metaRow: {
         flexDirection: 'row',
@@ -533,6 +528,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgPrimary,
         borderRadius: 16,
         padding: horizontalScale(16),
+        marginVertical: verticalScale(16)
     },
     cardHeader: {
         flexDirection: 'row',
@@ -541,7 +537,7 @@ const styles = StyleSheet.create({
         marginBottom: verticalScale(16),
     },
     cardHeaderRTL: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
     },
     cardTitle: {
         fontSize: ScaleFontSize(16),
@@ -558,7 +554,7 @@ const styles = StyleSheet.create({
         paddingVertical: verticalScale(8),
     },
     checklistHeaderRTL: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
     },
     checklistTitle: {
         fontSize: ScaleFontSize(16),
@@ -567,7 +563,7 @@ const styles = StyleSheet.create({
     },
     mealItem: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         backgroundColor: colors.bgPrimary,
         borderRadius: 12,
         padding: horizontalScale(16),
@@ -575,7 +571,7 @@ const styles = StyleSheet.create({
         marginBottom: verticalScale(8),
     },
     mealItemRTL: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
     },
     checkbox: {
         width: 24,
@@ -593,6 +589,7 @@ const styles = StyleSheet.create({
     },
     mealContent: {
         flex: 1,
+
     },
     mealHeader: {
         flexDirection: 'row',
@@ -602,7 +599,7 @@ const styles = StyleSheet.create({
         gap: horizontalScale(8),
     },
     mealHeaderRTL: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
     },
     mealName: {
         fontSize: ScaleFontSize(15),

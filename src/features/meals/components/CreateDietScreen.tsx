@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -25,7 +25,6 @@ import {
     Plus,
     Pencil,
     Trash2,
-    X,
     LibraryBig,
     Check,
 } from 'lucide-react-native';
@@ -33,13 +32,13 @@ import { colors, gradients } from '@/src/core/constants/Themes';
 import { isRTL } from '@/src/core/constants/translations';
 import { horizontalScale, verticalScale, ScaleFontSize } from '@/src/core/utils/scaling';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDietDetails } from '../hooks/useDietDetails';
-import { usePlanMutations, MealData, MealCategory as MealCategoryType, MealOption } from '../hooks/usePlanMutations';
+import { usePlanMutations, MealData, MealCategory as MealCategoryType, MealOption, DietPlanType } from '../hooks/usePlanMutations';
 import { Id } from '@/convex/_generated/dataModel';
 
 // ============ TRANSLATIONS ============
 const t = {
-    edit: isRTL ? 'تعديل' : 'Edit',
+    create: isRTL ? 'إنشاء' : 'Create',
+    createDiet: isRTL ? 'إنشاء نظام غذائي' : 'Create Diet',
     save: isRTL ? 'حفظ' : 'Save',
     saving: isRTL ? 'جاري الحفظ...' : 'Saving...',
     basicInfo: isRTL ? 'المعلومات الأساسية' : 'Basic Info',
@@ -53,11 +52,8 @@ const t = {
     addFoodCategory: isRTL ? 'إضافة فئة غذائية' : 'Add Food Category',
     enterGoal: isRTL ? 'أدخل وصف الهدف' : 'Enter goal description',
     enterCalorieRange: isRTL ? 'مثال: 1500-1800' : 'e.g. 1500-1800',
-    loading: isRTL ? 'جاري التحميل...' : 'Loading...',
-    notFound: isRTL ? 'الخطة غير موجودة' : 'Plan not found',
     planName: isRTL ? 'اسم الخطة' : 'Plan Name',
     enterPlanName: isRTL ? 'أدخل اسم الخطة' : 'Enter plan name',
-    // Modal translations
     cancel: isRTL ? 'إلغاء' : 'Cancel',
     confirm: isRTL ? 'تأكيد' : 'Confirm',
     delete: isRTL ? 'حذف' : 'Delete',
@@ -71,19 +67,15 @@ const t = {
     enterFoodItem: isRTL ? 'أدخل اسم العنصر' : 'Enter food item',
     newCategory: isRTL ? 'فئة جديدة' : 'New Category',
     noMeals: isRTL ? 'لا توجد وجبات' : 'No meals configured',
-    // Save options translations
-    saveOptions: isRTL ? 'خيارات الحفظ' : 'Save Options',
-    updateExisting: isRTL ? 'تحديث الخطة الحالية' : 'Update Existing Diet',
-    saveAsNew: isRTL ? 'حفظ كخطة جديدة' : 'Save as New Diet',
-    newDietName: isRTL ? 'اسم الخطة الجديدة' : 'New Diet Name',
-    enterNewName: isRTL ? 'أدخل اسم الخطة الجديدة' : 'Enter new diet name',
-    create: isRTL ? 'إنشاء' : 'Create',
-    editFoodItem: isRTL ? 'تعديل العنصر الغذائي' : 'Edit Food Item',
+    createSuccess: isRTL ? 'تم إنشاء الخطة بنجاح' : 'Diet plan created successfully',
+    createError: isRTL ? 'فشل في إنشاء الخطة. حاول مرة أخرى.' : 'Failed to create diet plan. Please try again.',
+    nameRequired: isRTL ? 'يرجى إدخال اسم الخطة' : 'Please enter a plan name',
 };
 
 // ============ PROPS ============
 interface Props {
-    dietId: Id<"dietPlans">;
+    categoryId: string;
+    categoryType: DietPlanType;
     onBack: () => void;
     onSave?: () => void;
 }
@@ -209,11 +201,10 @@ const AddFoodModal = ({ visible, value, onChangeValue, onCancel, onConfirm }: Ad
 // ============ FOOD ITEM COMPONENT ============
 interface FoodItemProps {
     item: MealOption;
-    onEdit: () => void;
     onRemove: () => void;
 }
 
-const FoodItem = ({ item, onEdit, onRemove }: FoodItemProps) => (
+const FoodItem = ({ item, onRemove }: FoodItemProps) => (
     <View style={[styles.foodItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
         <View style={[styles.foodItemContent, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
             <View style={styles.foodItemDot} />
@@ -221,14 +212,9 @@ const FoodItem = ({ item, onEdit, onRemove }: FoodItemProps) => (
                 {item.text}{item.textEn ? ` (${item.textEn})` : ''}
             </Text>
         </View>
-        <View style={[styles.foodItemActions, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-            <TouchableOpacity style={styles.removeItemButton} onPress={onEdit}>
-                <Pencil size={horizontalScale(16)} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.removeItemButton} onPress={onRemove}>
-                <Trash2 size={horizontalScale(16)} color="#EF4444" />
-            </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.removeItemButton} onPress={onRemove}>
+            <Trash2 size={horizontalScale(16)} color="#EF4444" />
+        </TouchableOpacity>
     </View>
 );
 
@@ -238,11 +224,10 @@ interface CategoryCardProps {
     onEditName: () => void;
     onDeleteCategory: () => void;
     onAddFood: () => void;
-    onEditFood: (itemId: string) => void;
     onRemoveFood: (itemId: string) => void;
 }
 
-const CategoryCard = ({ category, onEditName, onDeleteCategory, onAddFood, onEditFood, onRemoveFood }: CategoryCardProps) => (
+const CategoryCard = ({ category, onEditName, onDeleteCategory, onAddFood, onRemoveFood }: CategoryCardProps) => (
     <View style={styles.categoryCard}>
         {/* Category Header */}
         <View style={[styles.categoryHeader, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
@@ -265,7 +250,6 @@ const CategoryCard = ({ category, onEditName, onDeleteCategory, onAddFood, onEdi
                 <FoodItem
                     key={item.id}
                     item={item}
-                    onEdit={() => onEditFood(item.id)}
                     onRemove={() => onRemoveFood(item.id)}
                 />
             ))}
@@ -293,7 +277,6 @@ interface MealCardProps {
     onEditCategoryName: (categoryId: string) => void;
     onDeleteCategory: (categoryId: string) => void;
     onAddFood: (categoryId: string) => void;
-    onEditFood: (categoryId: string, itemId: string) => void;
     onRemoveFood: (categoryId: string, itemId: string) => void;
 }
 
@@ -307,7 +290,6 @@ const MealCard = ({
     onEditCategoryName,
     onDeleteCategory,
     onAddFood,
-    onEditFood,
     onRemoveFood,
 }: MealCardProps) => {
     // Calculate options count
@@ -355,7 +337,6 @@ const MealCard = ({
                             onEditName={() => onEditCategoryName(category.id)}
                             onDeleteCategory={() => onDeleteCategory(category.id)}
                             onAddFood={() => onAddFood(category.id)}
-                            onEditFood={(itemId) => onEditFood(category.id, itemId)}
                             onRemoveFood={(itemId) => onRemoveFood(category.id, itemId)}
                         />
                     ))}
@@ -374,22 +355,53 @@ const MealCard = ({
     );
 };
 
+// ============ HELPER: Create default meals ============
+const createDefaultMeals = (): MealData[] => {
+    const defaultMeals = [
+        { name: 'Breakfast', nameAr: 'الفطور', emoji: '🌅' },
+        { name: 'Lunch', nameAr: 'الغداء', emoji: '🌞' },
+        { name: 'Dinner', nameAr: 'العشاء', emoji: '🌙' },
+    ];
+
+    return defaultMeals.map(meal => ({
+        id: generateId(),
+        emoji: meal.emoji,
+        name: meal.name,
+        nameAr: meal.nameAr,
+        categories: [{
+            id: generateId(),
+            emoji: '📋',
+            name: 'New Category',
+            nameAr: 'فئة جديدة',
+            options: [],
+        }],
+    }));
+};
+
 // ============ MAIN COMPONENT ============
-export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
-    const { plan, isLoading } = useDietDetails(dietId);
-    const { updateDietPlan, createDietPlan, isLoading: isSaving } = usePlanMutations();
+export default function CreateDietScreen({ categoryId, categoryType, onBack, onSave }: Props) {
+    const { createDietPlan, isLoading: isSaving } = usePlanMutations();
     const insets = useSafeAreaInsets();
 
     // ===== FORM STATE =====
     const [name, setName] = useState('');
     const [targetCalories, setTargetCalories] = useState('');
     const [description, setDescription] = useState('');
-    const [mealsPerDay, setMealsPerDay] = useState(3);
     const [basicInfoOpen, setBasicInfoOpen] = useState(true);
     const [expandedMeals, setExpandedMeals] = useState<string[]>([]);
 
     // ===== LOCAL MEALS STATE (editable) =====
-    const [localMeals, setLocalMeals] = useState<MealData[]>([]);
+    const [localMeals, setLocalMeals] = useState<MealData[]>(() => {
+        const meals = createDefaultMeals();
+        return meals;
+    });
+
+    // Initialize expanded state with first meal
+    useState(() => {
+        if (localMeals.length > 0) {
+            setExpandedMeals([localMeals[0].id]);
+        }
+    });
 
     // ===== MODAL STATES =====
     const [editMealModal, setEditMealModal] = useState<{
@@ -413,96 +425,6 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
         categoryId: string;
         value: string;
     } | null>(null);
-
-    const [editFoodModal, setEditFoodModal] = useState<{
-        visible: boolean;
-        mealId: string;
-        categoryId: string;
-        itemId: string;
-        value: string;
-    } | null>(null);
-
-    // ===== SAVE OPTIONS MODAL STATES =====
-    const [saveOptionsVisible, setSaveOptionsVisible] = useState(false);
-    const [saveAsNewModal, setSaveAsNewModal] = useState<{
-        visible: boolean;
-        newName: string;
-    } | null>(null);
-
-    // ===== INITIALIZE FROM PLAN DATA =====
-    useEffect(() => {
-        if (plan) {
-            console.log('=== LOADING PLAN ===');
-            console.log('Plan ID:', plan._id);
-            console.log('Plan format:', plan.format);
-            console.log('Plan has meals:', !!plan.meals);
-            console.log('Plan has dailyMeals:', !!plan.dailyMeals);
-
-            setName(plan.name || '');
-            setTargetCalories(plan.targetCalories?.toString() || '');
-            setDescription(plan.description || '');
-
-            // Initialize localMeals from plan data
-            let rawMeals: MealData[] = [];
-
-            if (plan.format === 'general' && plan.meals) {
-                console.log('Loading from GENERAL format, meals count:', plan.meals.length);
-                rawMeals = plan.meals.map(meal => ({
-                    id: meal.id,
-                    emoji: meal.emoji,
-                    name: meal.name,
-                    nameAr: meal.nameAr,
-                    time: meal.time,
-                    note: meal.note,
-                    noteAr: meal.noteAr,
-                    categories: meal.categories.map(cat => ({
-                        id: cat.id,
-                        emoji: cat.emoji,
-                        name: cat.name,
-                        nameAr: cat.nameAr,
-                        options: cat.options.map(opt => ({
-                            id: opt.id,
-                            text: opt.text,
-                            textEn: opt.textEn,
-                        })),
-                    })),
-                }));
-            } else if (plan.format === 'daily' && plan.dailyMeals) {
-                // Use first day's meals for editing
-                const firstDay = Object.keys(plan.dailyMeals)[0];
-                console.log('Loading from DAILY format, first day:', firstDay);
-                const dayData = firstDay ? plan.dailyMeals[firstDay as keyof typeof plan.dailyMeals] : null;
-                if (dayData?.meals) {
-                    console.log('Day meals count:', dayData.meals.length);
-                    rawMeals = dayData.meals.map(meal => ({
-                        id: meal.id,
-                        emoji: meal.emoji,
-                        name: meal.name,
-                        nameAr: meal.nameAr,
-                        time: meal.time,
-                        note: meal.note,
-                        noteAr: meal.noteAr,
-                        categories: meal.categories.map(cat => ({
-                            id: cat.id,
-                            emoji: cat.emoji,
-                            name: cat.name,
-                            nameAr: cat.nameAr,
-                            options: cat.options.map(opt => ({
-                                id: opt.id,
-                                text: opt.text,
-                                textEn: opt.textEn,
-                            })),
-                        })),
-                    }));
-                }
-            }
-
-            console.log('Loaded rawMeals count:', rawMeals.length);
-            setLocalMeals(rawMeals);
-            setMealsPerDay(rawMeals.length || 3);
-            setExpandedMeals(rawMeals.length > 0 ? [rawMeals[0].id] : []);
-        }
-    }, [plan]);
 
     // ===== MEAL CRUD HANDLERS =====
 
@@ -696,50 +618,6 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
         );
     }, []);
 
-    // Open edit food modal
-    const handleOpenEditFoodModal = useCallback((mealId: string, categoryId: string, itemId: string) => {
-        const meal = localMeals.find(m => m.id === mealId);
-        const category = meal?.categories.find(c => c.id === categoryId);
-        const item = category?.options.find(o => o.id === itemId);
-        if (item) {
-            setEditFoodModal({
-                visible: true,
-                mealId,
-                categoryId,
-                itemId,
-                value: item.text,
-            });
-        }
-    }, [localMeals]);
-
-    // Confirm edit food item
-    const handleConfirmEditFood = useCallback(() => {
-        if (!editFoodModal || !editFoodModal.value.trim()) return;
-
-        setLocalMeals(prev =>
-            prev.map(meal =>
-                meal.id === editFoodModal.mealId
-                    ? {
-                        ...meal,
-                        categories: meal.categories.map(cat =>
-                            cat.id === editFoodModal.categoryId
-                                ? {
-                                    ...cat,
-                                    options: cat.options.map(opt =>
-                                        opt.id === editFoodModal.itemId
-                                            ? { ...opt, text: editFoodModal.value.trim() }
-                                            : opt
-                                    ),
-                                }
-                                : cat
-                        ),
-                    }
-                    : meal
-            )
-        );
-        setEditFoodModal(null);
-    }, [editFoodModal]);
-
     // ===== UI HANDLERS =====
 
     const BackArrow = () => isRTL
@@ -762,62 +640,40 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
         }
     };
 
-    // ===== SAVE HANDLERS =====
-
-    // Show save options modal when save button is pressed
-    const handleSavePress = () => {
-        setSaveOptionsVisible(true);
-    };
-
-    // Save to existing diet
-    const handleUpdateExisting = async () => {
-        setSaveOptionsVisible(false);
-        try {
-            console.log('=== UPDATING EXISTING DIET PLAN ===');
-            await updateDietPlan({
-                id: dietId,
-                name: name.trim(),
-                description: description.trim() || undefined,
-                targetCalories: targetCalories ? parseInt(targetCalories, 10) : undefined,
-                meals: localMeals,
-            });
-
-            console.log('=== UPDATE SUCCESSFUL ===');
-            Alert.alert(
-                isRTL ? 'تم الحفظ' : 'Saved',
-                isRTL ? 'تم حفظ التغييرات بنجاح' : 'Changes saved successfully',
-                [{ text: isRTL ? 'حسناً' : 'OK', onPress: () => { onSave?.(); onBack(); } }]
-            );
-        } catch (error) {
-            console.error('=== UPDATE FAILED ===', error);
+    // ===== SAVE HANDLER =====
+    const handleSave = async () => {
+        // Validate name
+        if (!name.trim()) {
             Alert.alert(
                 isRTL ? 'خطأ' : 'Error',
-                isRTL ? 'فشل في حفظ التغييرات. حاول مرة أخرى.' : 'Failed to save changes. Please try again.',
+                t.nameRequired,
                 [{ text: isRTL ? 'حسناً' : 'OK' }]
             );
+            return;
         }
-    };
 
-    // Open save as new modal
-    const handleOpenSaveAsNew = () => {
-        setSaveOptionsVisible(false);
-        setSaveAsNewModal({
-            visible: true,
-            newName: `${name} (Copy)`,
-        });
-    };
-
-    // Create new diet with current meals
-    const handleSaveAsNew = async () => {
-        if (!saveAsNewModal || !saveAsNewModal.newName.trim()) return;
-
-        setSaveAsNewModal(null);
         try {
             console.log('=== CREATING NEW DIET PLAN ===');
+            console.log('Category ID:', categoryId);
+            console.log('Category Type:', categoryType);
+
+            // For custom categories, extract the actual Convex ID
+            // categoryId format for custom: "custom_kx79e9n0hg9d85j99dna2m0dxs7ydwas"
+            const isCustomCategory = categoryId.startsWith('custom_');
+            const convexCategoryId = isCustomCategory ? categoryId.replace('custom_', '') : undefined;
+
+            // Always use 'custom' as type for custom categories
+            const dietType = isCustomCategory ? 'custom' : categoryType;
+
+            console.log('Is Custom Category:', isCustomCategory);
+            console.log('Convex Category ID:', convexCategoryId);
+            console.log('Diet Type:', dietType);
+
             await createDietPlan({
-                name: saveAsNewModal.newName.trim(),
+                name: name.trim(),
                 description: description.trim() || undefined,
-                type: plan?.type || 'custom',
+                type: dietType as DietPlanType,
+                categoryId: convexCategoryId as Id<"dietCategories"> | undefined, // Pass the actual Convex ID for custom categories
                 targetCalories: targetCalories ? parseInt(targetCalories, 10) : undefined,
                 meals: localMeals,
             });
@@ -825,61 +681,25 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
             console.log('=== CREATE SUCCESSFUL ===');
             Alert.alert(
                 isRTL ? 'تم الإنشاء' : 'Created',
-                isRTL ? 'تم إنشاء الخطة الجديدة بنجاح' : 'New diet created successfully',
+                t.createSuccess,
                 [{ text: isRTL ? 'حسناً' : 'OK', onPress: () => { onSave?.(); onBack(); } }]
             );
         } catch (error) {
             console.error('=== CREATE FAILED ===', error);
             Alert.alert(
                 isRTL ? 'خطأ' : 'Error',
-                isRTL ? 'فشل في إنشاء الخطة الجديدة. حاول مرة أخرى.' : 'Failed to create new diet. Please try again.',
+                t.createError,
                 [{ text: isRTL ? 'حسناً' : 'OK' }]
             );
         }
     };
-
-    // ============ LOADING STATE ============
-    if (isLoading) {
-        return (
-            <SafeAreaView edges={['left', 'right']} style={styles.container}>
-                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
-                    <View style={styles.saveButton}>
-                        <Text style={styles.saveButtonText}>{t.save}</Text>
-                    </View>
-                    <Text style={styles.headerTitle}>{t.loading}</Text>
-                    <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                        <BackArrow />
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colors.primaryDark} />
-                    <Text style={styles.loadingText}>{t.loading}</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // ============ NOT FOUND STATE ============
-    if (!plan) {
-        return (
-            <SafeAreaView edges={['left', 'right']} style={styles.container}>
-                <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
-                    <View style={{ width: horizontalScale(60) }} />
-                    <Text style={styles.headerTitle}>{t.notFound}</Text>
-                    <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                        <BackArrow />
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        );
-    }
 
     // ============ MAIN RENDER ============
     return (
         <SafeAreaView edges={['left', 'right']} style={styles.container}>
             {/* Header */}
             <View style={[styles.header, { flexDirection: isRTL ? 'row' : 'row-reverse', paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={handleSavePress} activeOpacity={0.9} disabled={isSaving}>
+                <TouchableOpacity onPress={handleSave} activeOpacity={0.9} disabled={isSaving}>
                     <LinearGradient
                         colors={isSaving ? ['#E1E8EF', '#E1E8EF'] : gradients.primary}
                         start={{ x: 0, y: 0 }}
@@ -889,12 +709,12 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
                         {isSaving ? (
                             <ActivityIndicator size="small" color={colors.textSecondary} />
                         ) : (
-                            <Text style={styles.saveButtonText}>{t.save}</Text>
+                            <Text style={styles.saveButtonText}>{t.create}</Text>
                         )}
                     </LinearGradient>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle} numberOfLines={1}>
-                    {t.edit} {plan.name}
+                    {t.createDiet}
                 </Text>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
                     <BackArrow />
@@ -1044,7 +864,6 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
                                     onEditCategoryName={(categoryId) => handleOpenEditCategoryModal(meal.id, categoryId)}
                                     onDeleteCategory={(categoryId) => handleDeleteCategory(meal.id, categoryId)}
                                     onAddFood={(categoryId) => handleOpenAddFoodModal(meal.id, categoryId)}
-                                    onEditFood={(categoryId, itemId) => handleOpenEditFoodModal(meal.id, categoryId, itemId)}
                                     onRemoveFood={(categoryId, itemId) => handleRemoveFoodItem(meal.id, categoryId, itemId)}
                                 />
                             ))
@@ -1098,123 +917,6 @@ export default function EditDietScreen({ dietId, onBack, onSave }: Props) {
                     onConfirm={handleConfirmAddFood}
                 />
             )}
-
-            {/* Edit Food Modal */}
-            {editFoodModal && (
-                <Modal visible={editFoodModal.visible} transparent animationType="fade" onRequestClose={() => setEditFoodModal(null)}>
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        style={styles.modalOverlay}
-                    >
-                        <View style={styles.modalContainer}>
-                            <Text style={styles.modalTitle}>{t.editFoodItem}</Text>
-
-                            <View style={styles.modalInputGroup}>
-                                <Text style={styles.modalInputLabel}>{t.foodItem}</Text>
-                                <TextInput
-                                    style={[styles.modalInput, { textAlign: isRTL ? 'right' : 'left' }]}
-                                    value={editFoodModal.value}
-                                    onChangeText={(text) => setEditFoodModal(prev => prev ? { ...prev, value: text } : null)}
-                                    placeholder={t.enterFoodItem}
-                                    placeholderTextColor={colors.textSecondary}
-                                    autoFocus
-                                />
-                            </View>
-
-                            <View style={styles.modalActions}>
-                                <TouchableOpacity style={styles.modalCancelButton} onPress={() => setEditFoodModal(null)}>
-                                    <Text style={styles.modalCancelText}>{t.cancel}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={handleConfirmEditFood}>
-                                    <LinearGradient
-                                        colors={gradients.primary}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.modalConfirmButton}
-                                    >
-                                        <Check size={horizontalScale(18)} color="#FFFFFF" />
-                                        <Text style={styles.modalConfirmText}>{t.save}</Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </KeyboardAvoidingView>
-                </Modal>
-            )}
-
-            {/* Save Options Modal */}
-            <Modal visible={saveOptionsVisible} transparent animationType="fade" onRequestClose={() => setSaveOptionsVisible(false)}>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>{t.saveOptions}</Text>
-
-                        <TouchableOpacity style={styles.saveOptionButton} onPress={handleUpdateExisting}>
-                            <LinearGradient
-                                colors={gradients.primary}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={styles.saveOptionGradient}
-                            >
-                                <Check size={horizontalScale(20)} color="#FFFFFF" />
-                                <Text style={styles.saveOptionText}>{t.updateExisting}</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.saveOptionButton} onPress={handleOpenSaveAsNew}>
-                            <View style={styles.saveOptionSecondary}>
-                                <Plus size={horizontalScale(20)} color={colors.primaryDark} />
-                                <Text style={styles.saveOptionSecondaryText}>{t.saveAsNew}</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.modalCancelButton} onPress={() => setSaveOptionsVisible(false)}>
-                            <Text style={styles.modalCancelText}>{t.cancel}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* Save As New Modal */}
-            {saveAsNewModal && (
-                <Modal visible={saveAsNewModal.visible} transparent animationType="fade" onRequestClose={() => setSaveAsNewModal(null)}>
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        style={styles.modalOverlay}
-                    >
-                        <View style={styles.modalContainer}>
-                            <Text style={styles.modalTitle}>{t.newDietName}</Text>
-
-                            <View style={styles.modalInputGroup}>
-                                <TextInput
-                                    style={[styles.modalInput, { textAlign: isRTL ? 'right' : 'left' }]}
-                                    value={saveAsNewModal.newName}
-                                    onChangeText={(text) => setSaveAsNewModal(prev => prev ? { ...prev, newName: text } : null)}
-                                    placeholder={t.enterNewName}
-                                    placeholderTextColor={colors.textSecondary}
-                                    autoFocus
-                                />
-                            </View>
-
-                            <View style={styles.modalActions}>
-                                <TouchableOpacity style={styles.modalCancelButton} onPress={() => setSaveAsNewModal(null)}>
-                                    <Text style={styles.modalCancelText}>{t.cancel}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={handleSaveAsNew}>
-                                    <LinearGradient
-                                        colors={gradients.primary}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 0 }}
-                                        style={styles.modalConfirmButton}
-                                    >
-                                        <Plus size={horizontalScale(18)} color="#FFFFFF" />
-                                        <Text style={styles.modalConfirmText}>{t.create}</Text>
-                                    </LinearGradient>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </KeyboardAvoidingView>
-                </Modal>
-            )}
         </SafeAreaView>
     );
 }
@@ -1261,17 +963,6 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         fontWeight: '700',
         color: '#FFFFFF',
-    },
-    // Loading
-    loadingContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: verticalScale(12),
-    },
-    loadingText: {
-        fontSize: ScaleFontSize(14),
-        color: colors.textSecondary,
     },
     // Content
     content: {
@@ -1527,11 +1218,6 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         color: colors.textPrimary,
     },
-    foodItemActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: horizontalScale(4),
-    },
     removeItemButton: {
         padding: horizontalScale(4),
     },
@@ -1646,38 +1332,5 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         fontWeight: '600',
         color: '#FFFFFF',
-    },
-    // Save Options Modal Styles
-    saveOptionButton: {
-        width: '100%',
-    },
-    saveOptionGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: horizontalScale(10),
-        paddingVertical: verticalScale(14),
-        borderRadius: horizontalScale(10),
-    },
-    saveOptionText: {
-        fontSize: ScaleFontSize(16),
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-    saveOptionSecondary: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: horizontalScale(10),
-        paddingVertical: verticalScale(14),
-        borderRadius: horizontalScale(10),
-        borderWidth: 1,
-        borderColor: colors.primaryDark,
-        backgroundColor: 'rgba(80, 115, 254, 0.1)',
-    },
-    saveOptionSecondaryText: {
-        fontSize: ScaleFontSize(16),
-        fontWeight: '600',
-        color: colors.primaryDark,
     },
 });

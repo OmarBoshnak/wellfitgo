@@ -110,6 +110,16 @@ export default function DietPlansScreen() {
         });
     };
 
+    const handleCreateNew = (categoryId: string, categoryType: string) => {
+        router.push({
+            pathname: '/doctor/diet-create',
+            params: {
+                categoryId,
+                categoryType,
+            },
+        });
+    };
+
     return (
         <SafeAreaView edges={['left', 'right']} style={styles.container}>
             <ScrollView
@@ -123,6 +133,7 @@ export default function DietPlansScreen() {
                     onAssign={handleAssign}
                     onView={handleViewDetails}
                     onEdit={handleEdit}
+                    onCreateNew={handleCreateNew}
                 />
             </ScrollView>
 

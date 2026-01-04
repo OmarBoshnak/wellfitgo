@@ -18,7 +18,9 @@ export interface DietCategory {
     name: string;
     nameAr: string;
     emoji?: string;
+    description?: string;
     count: number;
+    isCustom?: boolean;
 }
 
 // ============ HOOK ============

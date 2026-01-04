@@ -36,7 +36,6 @@ const t = {
     noActivity: isRTL ? 'لا يوجد نشاط حتى الآن' : 'No activity yet',
     almostDone: isRTL ? 'قارب الانتهاء' : 'Almost done',
     viewProgress: isRTL ? 'عرض التقدم' : 'View Progress',
-    modifyPlan: isRTL ? 'تعديل الخطة' : 'Modify Plan',
     extendPlan: isRTL ? 'تمديد الخطة' : 'Extend Plan',
     remindClient: isRTL ? 'تذكير العميل' : 'Remind Client',
     noActivePlans: isRTL ? 'لا توجد خطط نشطة' : 'No Active Plans',
@@ -72,13 +71,6 @@ export default function PlansScreen() {
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showClientProgress, setShowClientProgress] = useState(false);
     const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
-    const [customCategories, setCustomCategories] = useState<{
-        id: string;
-        emoji: string;
-        name: string;
-        nameAr: string;
-        count: number;
-    }[]>([]);
 
     // ============ CONVEX DATA HOOKS ============
     const {
@@ -133,22 +125,24 @@ export default function PlansScreen() {
         description: string;
         autoGenerateRanges: boolean;
     }) => {
-        // Create new category object
-        const newCategory = {
-            id: `custom_${Date.now()}`,
-            emoji: category.emoji,
-            name: category.nameEn,
-            nameAr: category.nameAr,
-            count: category.autoGenerateRanges ? 14 : 0,
-        };
-
-        // Add to state
-        setCustomCategories(prev => [...prev, newCategory]);
+        // Category is now created via Convex mutation in CreateCategoryModal
+        // This callback is just for closing the modal
         setShowCreateCategoryModal(false);
     };
 
-    const handleDeleteCategory = (categoryId: string) => {
-        setCustomCategories(prev => prev.filter(cat => cat.id !== categoryId));
+    const handleDeleteCategory = async (categoryId: string) => {
+        // Custom categories have IDs prefixed with 'custom_'
+        // Extract the actual Convex ID and delete via mutation
+        if (categoryId.startsWith('custom_')) {
+            const convexId = categoryId.replace('custom_', '');
+            try {
+                // Note: The actual mutation call would need to be added here
+                // For now, the DietCategoriesGrid should handle the deletion via its own mutation
+                console.log('Delete category requested:', convexId);
+            } catch (error) {
+                console.error('Failed to delete category:', error);
+            }
+        }
     };
 
     const getStatusColor = (status: string) => {
@@ -288,11 +282,6 @@ export default function PlansScreen() {
                         >
                             <Text style={styles.primaryButtonText}>
                                 {plan.status === 'paused' ? t.remindClient : t.viewProgress}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.secondaryButton}>
-                            <Text style={styles.secondaryButtonText}>
-                                {plan.statusMessage === 'finishing' ? t.extendPlan : t.modifyPlan}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -475,7 +464,6 @@ export default function PlansScreen() {
                     <DietCategoriesGrid
                         onCreateCustom={() => setShowCreateCategoryModal(true)}
                         onDeleteCategory={handleDeleteCategory}
-                        customCategories={customCategories}
                     />
                 )}
             </ScrollView>

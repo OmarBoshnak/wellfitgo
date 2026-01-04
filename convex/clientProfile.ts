@@ -623,6 +623,7 @@ export const getClientMealPlans = query({
 
                 return {
                     id: plan._id,
+                    dietPlanId: plan.dietPlanId, // Include diet plan reference for navigation
                     weekStartDate: plan.weekStartDate,
                     weekEndDate: plan.weekEndDate,
                     status: plan.status,
@@ -1146,8 +1147,9 @@ export const updateMealPlanDiet = mutation({
             year = weekStart.getFullYear();
         }
 
-        // Update the plan
+        // Update the plan with the new diet plan reference
         await ctx.db.patch(args.planId, {
+            dietPlanId: args.dietPlanId, // Store the new diet plan reference
             weekStartDate: weekStartStr,
             weekEndDate: weekEndStr,
             weekNumber,
@@ -1161,6 +1163,8 @@ export const updateMealPlanDiet = mutation({
             success: true,
             weekStartDate: weekStartStr,
             weekEndDate: weekEndStr,
+            dietPlanName: dietPlan.name,
         };
     },
 });
+

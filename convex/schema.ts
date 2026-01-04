@@ -2,6 +2,23 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+    // ============ CUSTOM DIET CATEGORIES ============
+    dietCategories: defineTable({
+        name: v.string(),
+        nameAr: v.optional(v.string()),
+        emoji: v.string(),
+        description: v.optional(v.string()),
+        descriptionAr: v.optional(v.string()),
+        autoGenerateRanges: v.boolean(), // If true, auto-generate 14 calorie ranges (1000-2500 kcal)
+        isActive: v.boolean(),
+        sortOrder: v.optional(v.number()),
+        createdBy: v.id("users"),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_active", ["isActive"])
+        .index("by_created_by", ["createdBy"]),
+
     // ============ CALENDAR EVENTS (for doctor calls) ============
     calendarEvents: defineTable({
         coachId: v.id("users"),
@@ -350,6 +367,8 @@ export default defineSchema({
             v.literal("medical"),
             v.literal("custom")
         ),
+        // For custom categories (if type is "custom")
+        categoryId: v.optional(v.id("dietCategories")),
         tags: v.optional(v.array(v.string())),
 
         // ===== TARGET =====
@@ -584,7 +603,8 @@ export default defineSchema({
         .index("by_type", ["type"])
         .index("by_format", ["format"])
         .index("by_active", ["isActive"])
-        .index("by_type_active", ["type", "isActive"]),
+        .index("by_type_active", ["type", "isActive"])
+        .index("by_category", ["categoryId"]),
 
     // ============ CONVERSATIONS & MESSAGES ============
     conversations: defineTable({

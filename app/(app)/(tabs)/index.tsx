@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Dimensions,
     I18nManager,
@@ -11,6 +11,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    ActivityIndicator,
 } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -26,7 +27,6 @@ import {
     selectWeeklyData,
     selectProgress,
 } from '@/src/store/userSlice';
-import { selectMeals } from '@/src/store/mealsSlice';
 import { selectWaterIntake, selectWaterGoal } from '@/src/store/waterSlice';
 import { homeTranslations, isRTL } from '@/src/core/constants/translations';
 import { WeightCheckin } from '@/src/features/tracking/components/WeightCheckin';
@@ -39,14 +39,29 @@ const { width } = Dimensions.get('window');
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
 
+// Helper to get today's date in local timezone (YYYY-MM-DD)
+const getTodayDateString = (): string => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const HomeScreen = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [showCheckin, setShowCheckin] = useState(false);
     const [showWaterTracker, setShowWaterTracker] = useState(false);
 
+    // Get today's date for meals query
+    const todayString = useMemo(() => getTodayDateString(), []);
+
     // Get user data from Convex (for avatar)
     const convexUser = useQuery(api.users.currentUser);
+
+    // Get today's meals from Convex (same as meals screen)
+    const dayView = useQuery(api.meals.getDayView, { date: todayString });
 
     // Get user data from Redux store
     const user = useAppSelector((state) => state.user);
@@ -75,14 +90,17 @@ const HomeScreen = () => {
                 ? homeTranslations.goodAfternoon
                 : homeTranslations.goodEvening;
 
-    // Get meals from Redux store (synced with meals screen)
-    const mealsData = useAppSelector(selectMeals);
-    const meals = mealsData.map(meal => ({
-        emoji: meal.emoji,
-        name: isRTL ? meal.nameAr : meal.name,
-        time: meal.time,
-        completed: meal.completed,
-    }));
+    // Get meals from Convex (real-time sync with meals screen)
+    const meals = useMemo(() => {
+        if (!dayView?.meals) return [];
+        return dayView.meals.map(meal => ({
+            id: meal.id,
+            emoji: meal.emoji || '🍽️',
+            name: isRTL ? (meal.nameAr || meal.name) : meal.name,
+            time: meal.time || '',
+            completed: meal.completed,
+        }));
+    }, [dayView?.meals]);
 
     const onStartCheckin = () => {
         setShowCheckin(true);
@@ -288,22 +306,40 @@ const HomeScreen = () => {
                         </View>
 
                         <View style={styles.mealsList}>
-                            {meals.map((meal, i) => (
-                                <View key={i} style={[styles.mealItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
-
-                                    <Text style={[styles.mealName, isRTL && styles.textRTL]}>{meal.name}
-                                        {'  '}<Text style={styles.mealEmoji}>{meal.emoji}</Text>
+                            {dayView === undefined ? (
+                                // Loading state
+                                <View style={styles.mealsLoading}>
+                                    <ActivityIndicator size="small" color={colors.primaryDark} />
+                                    <Text style={styles.mealsLoadingText}>
+                                        {isRTL ? 'جاري التحميل...' : 'Loading meals...'}
                                     </Text>
-
-                                    {meal.completed ? (
-                                        <View style={styles.checkmarkCompleted}>
-                                            <Ionicons name="checkmark" size={14} color={colors.white} />
-                                        </View>
-                                    ) : (
-                                        <View style={styles.checkmarkEmpty} />
-                                    )}
                                 </View>
-                            ))}
+                            ) : meals.length === 0 ? (
+                                // No plan state
+                                <View style={styles.noMealsState}>
+                                    <Text style={styles.noMealsEmoji}>🥗</Text>
+                                    <Text style={[styles.noMealsText, isRTL && styles.textRTL]}>
+                                        {isRTL ? 'لم يتم تعيين خطة بعد' : 'No plan assigned yet'}
+                                    </Text>
+                                </View>
+                            ) : (
+                                // Meals list
+                                meals.map((meal, i) => (
+                                    <View key={meal.id || i} style={[styles.mealItem, { flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
+                                        <Text style={[styles.mealName, isRTL && styles.textRTL]}>{meal.name}
+                                            {'  '}<Text style={styles.mealEmoji}>{meal.emoji}</Text>
+                                        </Text>
+
+                                        {meal.completed ? (
+                                            <View style={styles.checkmarkCompleted}>
+                                                <Ionicons name="checkmark" size={14} color={colors.white} />
+                                            </View>
+                                        ) : (
+                                            <View style={styles.checkmarkEmpty} />
+                                        )}
+                                    </View>
+                                ))
+                            )}
                         </View>
                     </TouchableOpacity>
 
@@ -575,6 +611,32 @@ const styles = StyleSheet.create({
         fontSize: ScaleFontSize(14),
         fontWeight: '600',
         color: colors.primaryDark,
+    },
+    // Meals loading and empty states
+    mealsLoading: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        gap: 8,
+    },
+    mealsLoadingText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+    },
+    noMealsState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        gap: 8,
+    },
+    noMealsEmoji: {
+        fontSize: 32,
+    },
+    noMealsText: {
+        fontSize: ScaleFontSize(14),
+        color: colors.textSecondary,
+        textAlign: 'center',
     },
 });
 

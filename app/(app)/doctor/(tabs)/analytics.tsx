@@ -1,4 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'expo-router';
+import { useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { Id } from '@/convex/_generated/dataModel';
 import {
     View,
     Text,
@@ -7,6 +11,7 @@ import {
     StyleSheet,
     Dimensions,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -92,11 +97,45 @@ const getDayLabel = (dateStr: string): string => {
 // ============ MAIN COMPONENT ============
 export default function AnalyticsScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
     const [timeFilter, setTimeFilter] = useState<TimeRange>('7days');
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+    const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
 
     // Fetch analytics data from Convex
     const { data, isLoading, isEmpty } = useDoctorAnalytics(timeFilter);
+
+    // Send reminder mutation
+    const sendReminderMutation = useMutation(api.clients.sendClientReminder);
+
+    // Handle send reminder button press
+    const handleSendReminder = useCallback(async (clientId: string, clientName: string) => {
+        setSendingReminderId(clientId);
+        try {
+            await sendReminderMutation({
+                clientId: clientId as Id<"users">,
+                reminderType: 'general',
+            });
+            Alert.alert(
+                isRTL ? 'تم الإرسال' : 'Sent',
+                isRTL ? `تم إرسال التذكير إلى ${clientName}` : `Reminder sent to ${clientName}`,
+                [{ text: isRTL ? 'حسناً' : 'OK' }]
+            );
+        } catch (error) {
+            Alert.alert(
+                isRTL ? 'خطأ' : 'Error',
+                isRTL ? 'فشل إرسال التذكير' : 'Failed to send reminder',
+                [{ text: isRTL ? 'حسناً' : 'OK' }]
+            );
+        } finally {
+            setSendingReminderId(null);
+        }
+    }, [sendReminderMutation]);
+
+    // Handle view profile button press
+    const handleViewProfile = useCallback((clientId: string) => {
+        router.push(`/(app)/doctor/client-profile?id=${clientId}`);
+    }, [router]);
 
     const timeFilters: { key: TimeRange; label: string }[] = [
         { key: '7days', label: t.last7Days },
@@ -501,12 +540,23 @@ export default function AnalyticsScreen() {
                                     </View>
                                     <View style={[styles.actionContainer, { flex: 1.5, flexDirection: isRTL ? 'row' : 'row-reverse' }]}>
                                         {client.status !== 'on_track' && (
-                                            <TouchableOpacity activeOpacity={0.7}>
-                                                <Text style={styles.actionText}>{t.sendReminder}</Text>
+                                            <TouchableOpacity
+                                                activeOpacity={0.7}
+                                                onPress={() => handleSendReminder(client.id, client.name)}
+                                                disabled={sendingReminderId === client.id}
+                                            >
+                                                <Text style={styles.actionText}>
+                                                    {sendingReminderId === client.id
+                                                        ? (isRTL ? 'جاري...' : 'Sending...')
+                                                        : t.sendReminder}
+                                                </Text>
                                             </TouchableOpacity>
                                         )}
                                         {client.status === 'at_risk' && (
-                                            <TouchableOpacity style={{ marginHorizontal: horizontalScale(4) }} activeOpacity={0.7}>
+                                            <TouchableOpacity
+                                                activeOpacity={0.7}
+                                                onPress={() => handleViewProfile(client.id)}
+                                            >
                                                 <Text style={styles.actionTextGreen}>{t.viewProfile}</Text>
                                             </TouchableOpacity>
                                         )}
@@ -924,5 +974,6 @@ const styles = StyleSheet.create({
         color: '#10B981',
         fontWeight: '500',
         paddingVertical: verticalScale(4),
+
     },
 });
